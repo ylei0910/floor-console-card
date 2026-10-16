@@ -578,7 +578,7 @@ class FloorConsoleCard extends HTMLElement {
     var a = ((this._config || {}).appliances || [])[idx];
     if (!a) return;
     var rows = a.power && this._hass.states[a.power] ? [{ icon: "i-power", label: this._t("power"), sub: "", entity: a.power }] : [];
-    this._openSheet({ name: a.label, icon: a.icon || "i-washer", status: this._applianceStatusText(a), rows: rows });
+    this._openSheet({ name: a.label, icon: a.icon || "i-washer", status: this._applianceStatusText(a), rows: rows, noNote: true });
     var body = this._$("sheetBody");
     body.insertAdjacentHTML("afterbegin", '<div class="appl-info" id="applInfo">' + this._applianceInfoHTML(a) + '</div>');
     body.insertAdjacentHTML("beforeend", '<div class="master-bar"><button class="master-toggle" id="applMore">' + this._t("appl_more") + '</button></div>');
@@ -801,7 +801,7 @@ class FloorConsoleCard extends HTMLElement {
     if (devRows.length) html += '<div class="dev-bar">' + devRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     html += plainRows.map(this._rowHTML.bind(this)).join("");
     if (camRows.length) html += '<div class="cam-bar">' + camRows.map(this._rowHTML.bind(this)).join("") + '</div>';
-    if (!allRows.length && !a.embed) html += '<div class="note">' + this._t("no_controls") + '</div>';
+    if (!allRows.length && !a.embed && !a.noNote) html += '<div class="note">' + this._t("no_controls") + '</div>';
     $("sheetBody").innerHTML = html;
     this._wireRows($("sheetBody"));
     if (a.embed) this._mountEmbed($("sheetEmbed"), a.embed);
