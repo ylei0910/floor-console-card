@@ -544,7 +544,7 @@ class FloorConsoleCard extends HTMLElement {
       var min = Math.max(1, Math.ceil((t - Date.now()) / 60000));
       parts.push(min >= 60 ? this._t("left_hm", { h: Math.floor(min / 60), m: min % 60 }) : this._t("left_m", { m: min }));
     }
-    var tone = st.state === "error" ? "--alert" : st.state === "pause" || st.state === "end" ? "--info" : "--on";
+    var tone = st.state === "error" ? "--alert" : "--accent";
     return this._badgeHTML(tone, a.icon || "i-washer", parts.join(" · ")).replace('class="badge"', 'class="badge" data-appl="' + idx + '"');
   }
 
