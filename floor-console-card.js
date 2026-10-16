@@ -696,10 +696,10 @@ class FloorConsoleCard extends HTMLElement {
       return '<button class="cam-btn" data-camera="' + r.camera + '" data-label="' + r.label + '"><span class="circle">' + this._icon(r.icon) + '</span><span class="l">' + r.label + '</span></button>';
     }
     if (r.appliance != null) {
+      // Washer / dryer: a tile like the fan / air-con ones; tap opens its sheet.
       var ap = ((this._config || {}).appliances || [])[r.appliance];
-      return '<div class="row appl-row' + (ap && this._applianceActive(ap) ? " on" : "") + '" data-appl-row="' + r.appliance + '"><div class="ricon">' + this._icon(r.icon) + '</div>' +
-        '<div class="rlabel"><b>' + r.label + '</b><span>' + r.sub + '</span></div>' +
-        '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>';
+      return '<div class="dev-tile appl-tile' + (ap && this._applianceActive(ap) ? " on" : "") + '" data-appl-row="' + r.appliance + '"><button class="dev-main">' + this._icon(r.icon) +
+        '<span class="dl"><b>' + r.label + '</b><span class="ds">' + r.sub + '</span></span></button></div>';
     }
     var on = this._isOn(r.entity);
     if (r.dev) {
@@ -748,14 +748,14 @@ class FloorConsoleCard extends HTMLElement {
         });
         return;
       }
+      if (row.hasAttribute("data-appl-row")) {
+        row.addEventListener("click", function () { self._openApplianceSheet(parseInt(row.getAttribute("data-appl-row"), 10), true); });
+        return;
+      }
       if (row.classList.contains("dev-tile")) {
         var devEntity = row.getAttribute("data-entity");
         row.querySelector(".dev-main").addEventListener("click", function () { self._toggle(devEntity); });
         row.querySelector(".dev-more").addEventListener("click", function () { self._moreInfo(devEntity); });
-        return;
-      }
-      if (row.hasAttribute("data-appl-row")) {
-        row.addEventListener("click", function () { self._openApplianceSheet(parseInt(row.getAttribute("data-appl-row"), 10), true); });
         return;
       }
       var lightsAttr = row.getAttribute("data-group");
@@ -828,11 +828,13 @@ class FloorConsoleCard extends HTMLElement {
     var devRows = allRows.filter(isDev).map(function (r) {
       return Object.assign({}, r, { dev: true, devLabel: allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv") }[r.entity.split(".")[0]]) });
     });
-    var plainRows = allRows.filter(function (r) { return !r.master && !r.camera && !r.curtain && !isDev(r); });
+    var applRows = allRows.filter(function (r) { return r.appliance != null; });
+    var plainRows = allRows.filter(function (r) { return !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
     var curtainRows = allRows.filter(function (r) { return r.curtain; });
     var camRows = allRows.filter(function (r) { return r.camera; });
     if (masterRows.length || curtainRows.length) html += '<div class="master-bar">' + masterRows.concat(curtainRows).map(this._rowHTML.bind(this)).join("") + '</div>';
     if (devRows.length) html += '<div class="dev-bar">' + devRows.map(this._rowHTML.bind(this)).join("") + '</div>';
+    if (applRows.length) html += '<div class="dev-bar appl-bar">' + applRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     html += plainRows.map(this._rowHTML.bind(this)).join("");
     if (camRows.length) html += '<div class="cam-bar">' + camRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     $("sheetBody").innerHTML = html;
@@ -1208,10 +1210,10 @@ class FloorConsoleCard extends HTMLElement {
     }
 
     // appliance rows inside an open area sheet
-    this._root.querySelectorAll(".appl-row").forEach(function (row) {
+    this._root.querySelectorAll(".appl-tile").forEach(function (row) {
       var ap = (cfg.appliances || [])[parseInt(row.getAttribute("data-appl-row"), 10)];
       if (!ap) return;
-      var sub = row.querySelector(".rlabel span"), txt = this._applianceSubText(ap);
+      var sub = row.querySelector(".ds"), txt = this._applianceSubText(ap);
       if (sub.textContent !== txt) sub.textContent = txt;
       row.classList.toggle("on", this._applianceActive(ap));
     }.bind(this));
@@ -1379,7 +1381,6 @@ class FloorConsoleCard extends HTMLElement {
 '.occupancybtn .plabel{flex:1;min-width:0}' +
 '.occupancybtn .plabel b{display:block;font-size:.88rem;font-weight:600}' +
 '.occupancybtn .plabel span{display:block;font-size:.72rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-'.row .chev{flex:none;width:18px;height:18px;stroke:var(--fg-dim)}' +
 '.occupancybtn .chev{flex:none;width:16px;height:16px;stroke:var(--fg-dim)}' +
 '.quickactions{flex:none;display:flex;gap:8px}' +
 '.qa-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;touch-action:none;}' +
@@ -1412,6 +1413,7 @@ class FloorConsoleCard extends HTMLElement {
 '.dev-main .dl{min-width:0;display:flex;flex-direction:column}' +
 '.dev-main b{font-size:.82rem;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
 '.dev-main .ds{font-size:.66rem;color:var(--fg-dim)}' +
+'.appl-bar{flex-wrap:wrap}.appl-tile{flex:1 1 calc(50% - 4px)}.appl-tile .dev-main{padding:9px 10px}' +
 '.dev-tile.on .ds{color:var(--accent-strong)}' +
 '.dev-more{flex:none;width:34px;align-self:stretch;border:none;border-left:1px solid var(--line);background:none;color:var(--fg-dim);font:inherit;font-size:1.1rem;cursor:pointer;border-radius:0 14px 14px 0}' +
 '.master-toggle.curtain-tile .n{font-family:inherit;font-weight:600}' +
