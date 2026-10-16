@@ -548,6 +548,31 @@ class FloorConsoleCard extends HTMLElement {
     return this._badgeHTML(tone, a.icon || "i-washer", parts.join(" · ")).replace('class="badge"', 'class="badge" data-appl="' + idx + '"');
   }
 
+  // Appliances belonging to an area (config `area`, else the area of the status
+  // sensor / its device) become tappable rows at the top of that area's sheet.
+  _applianceRows(areaId) {
+    var h = this._hass, out = [];
+    ((this._config || {}).appliances || []).forEach(function (a, i) {
+      var e = a.status && h.entities && h.entities[a.status], dev = e && e.device_id && h.devices && h.devices[e.device_id];
+      var aid = a.area || (e && e.area_id) || (dev && dev.area_id);
+      if (aid === areaId && h.states[a.status]) out.push({ appliance: i, icon: a.icon || "i-washer", label: a.label, sub: this._applianceSubText(a) });
+    }.bind(this));
+    return out;
+  }
+  _applianceSubText(a) {
+    var parts = [this._applianceStatusText(a)];
+    var rem = a.remaining && this._hass.states[a.remaining], t = rem ? Date.parse(rem.state) : NaN;
+    if (!isNaN(t) && t > Date.now()) {
+      var min = Math.max(1, Math.ceil((t - Date.now()) / 60000));
+      parts.push(min >= 60 ? this._t("left_hm", { h: Math.floor(min / 60), m: min % 60 }) : this._t("left_m", { m: min }));
+    }
+    return parts.join(" · ");
+  }
+  _applianceActive(a) {
+    var st = a.status && this._hass.states[a.status];
+    return !!st && (a.idle || ["power_off", "initial", "unavailable", "unknown"]).indexOf(st.state) === -1;
+  }
+
   _fmtMin(min) {
     return min >= 60 ? this._t("dur_hm", { h: Math.floor(min / 60), m: min % 60 }) : this._t("dur_m", { m: min });
   }
@@ -572,11 +597,12 @@ class FloorConsoleCard extends HTMLElement {
     if (cyc && !isNaN(parseFloat(cyc.state))) line(this._t("appl_cycles"), cyc.state);
     return lines.join("");
   }
-  _openApplianceSheet(idx) {
+  _openApplianceSheet(idx, fromArea) {
     var a = ((this._config || {}).appliances || [])[idx];
     if (!a) return;
     var rows = a.power && this._hass.states[a.power] ? [{ icon: "i-power", label: this._t("power"), sub: "", entity: a.power }] : [];
-    this._openSheet({ name: a.label, icon: a.icon || "i-washer", status: this._applianceStatusText(a), rows: rows });
+    this._openSheet({ name: a.label, icon: a.icon || "i-washer", status: this._applianceStatusText(a), rows: rows,
+      back: fromArea && this._lastArea ? function () { this._openAreaSheet(this._lastArea); }.bind(this) : false });
     var body = this._$("sheetBody");
     body.insertAdjacentHTML("afterbegin", '<div class="appl-info" id="applInfo">' + this._applianceInfoHTML(a) + '</div>');
     body.insertAdjacentHTML("beforeend", '<div class="master-bar"><button class="master-toggle" id="applMore">' + this._t("appl_more") + '</button></div>');
@@ -669,6 +695,12 @@ class FloorConsoleCard extends HTMLElement {
       // they read differently from the switch rows (controls).
       return '<button class="cam-btn" data-camera="' + r.camera + '" data-label="' + r.label + '"><span class="circle">' + this._icon(r.icon) + '</span><span class="l">' + r.label + '</span></button>';
     }
+    if (r.appliance != null) {
+      var ap = ((this._config || {}).appliances || [])[r.appliance];
+      return '<div class="row appl-row' + (ap && this._applianceActive(ap) ? " on" : "") + '" data-appl-row="' + r.appliance + '"><div class="ricon">' + this._icon(r.icon) + '</div>' +
+        '<div class="rlabel"><b>' + r.label + '</b><span>' + r.sub + '</span></div>' +
+        '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>';
+    }
     var on = this._isOn(r.entity);
     if (r.dev) {
       // Fan / air-con pulled out of the list: tap toggles, "⋯" opens more-info.
@@ -720,6 +752,10 @@ class FloorConsoleCard extends HTMLElement {
         var devEntity = row.getAttribute("data-entity");
         row.querySelector(".dev-main").addEventListener("click", function () { self._toggle(devEntity); });
         row.querySelector(".dev-more").addEventListener("click", function () { self._moreInfo(devEntity); });
+        return;
+      }
+      if (row.hasAttribute("data-appl-row")) {
+        row.addEventListener("click", function () { self._openApplianceSheet(parseInt(row.getAttribute("data-appl-row"), 10), true); });
         return;
       }
       var lightsAttr = row.getAttribute("data-group");
@@ -971,7 +1007,7 @@ class FloorConsoleCard extends HTMLElement {
       var ids = a.rows.filter(function (r) { return r.entity && r.entity.indexOf(k[1]) === 0; }).map(function (r) { return r.entity; });
       if (ids.length >= k[2]) masters.push({ master: true, kind: k[0], ids: ids });
     });
-    var rows = masters.concat(a.rows);
+    var rows = masters.concat(this._applianceRows(a.id), a.rows);
     this._openSheet({ id: a.id, name: a.name, roman: a.roman, icon: a.icon, common: a.common, status: this._areaStatus(a), rows: rows, back: true, pullout: true });
     this._currentArea = a;
     this._lastArea = a;
@@ -1171,6 +1207,15 @@ class FloorConsoleCard extends HTMLElement {
       $("sheetSub").textContent = (this._currentArea.roman ? this._currentArea.roman + " · " : "") + this._areaStatus(this._currentArea);
     }
 
+    // appliance rows inside an open area sheet
+    this._root.querySelectorAll(".appl-row").forEach(function (row) {
+      var ap = (cfg.appliances || [])[parseInt(row.getAttribute("data-appl-row"), 10)];
+      if (!ap) return;
+      var sub = row.querySelector(".rlabel span"), txt = this._applianceSubText(ap);
+      if (sub.textContent !== txt) sub.textContent = txt;
+      row.classList.toggle("on", this._applianceActive(ap));
+    }.bind(this));
+
     // keep an open appliance sheet live too
     if (this._applOpen) {
       var info = $("applInfo"), ahtml = this._applianceInfoHTML(this._applOpen);
@@ -1334,6 +1379,7 @@ class FloorConsoleCard extends HTMLElement {
 '.occupancybtn .plabel{flex:1;min-width:0}' +
 '.occupancybtn .plabel b{display:block;font-size:.88rem;font-weight:600}' +
 '.occupancybtn .plabel span{display:block;font-size:.72rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+'.row .chev{flex:none;width:18px;height:18px;stroke:var(--fg-dim)}' +
 '.occupancybtn .chev{flex:none;width:16px;height:16px;stroke:var(--fg-dim)}' +
 '.quickactions{flex:none;display:flex;gap:8px}' +
 '.qa-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;touch-action:none;}' +
