@@ -428,6 +428,8 @@ class FloorConsoleCard extends HTMLElement {
     };
     list.sort(function (a, b) {
       var da = rank[a.split(".")[0]], db = rank[b.split(".")[0]];
+      if (da == null) da = 9;
+      if (db == null) db = 9;
       if (da !== db) return da - db;
       var oa = (ents[a] || {}).order, ob = (ents[b] || {}).order;
       if (oa != null && ob != null && oa !== ob) return oa - ob;
