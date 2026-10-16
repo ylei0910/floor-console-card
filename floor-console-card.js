@@ -536,7 +536,7 @@ class FloorConsoleCard extends HTMLElement {
   _applianceBadge(a, idx) {
     var st = a.status && this._hass.states[a.status];
     if (!st) return "";
-    var idle = a.idle || ["power_off", "initial", "end", "unavailable", "unknown"];
+    var idle = a.idle || ["power_off", "initial", "unavailable", "unknown"];
     if (idle.indexOf(st.state) !== -1) return "";
     var key = "s_" + st.state, txt = this._t(key);
     var parts = [a.label, txt === key ? st.state : txt];
@@ -546,7 +546,7 @@ class FloorConsoleCard extends HTMLElement {
       var min = Math.max(1, Math.ceil((t - Date.now()) / 60000));
       parts.push(min >= 60 ? this._t("left_hm", { h: Math.floor(min / 60), m: min % 60 }) : this._t("left_m", { m: min }));
     }
-    var tone = st.state === "error" ? "--alert" : st.state === "pause" ? "--info" : "--on";
+    var tone = st.state === "error" ? "--alert" : st.state === "pause" || st.state === "end" ? "--info" : "--on";
     return this._badgeHTML(tone, a.icon || "i-washer", parts.join(" · ")).replace('class="badge"', 'class="badge" data-appl="' + idx + '"');
   }
 

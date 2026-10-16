@@ -81,7 +81,7 @@ entities:
 | `language` | `en` or `zh`; default follows the HA user language. |
 | `weather`, `vacuum`, `home_zone`, `presence` | Badge sources. `presence` (binary sensor, off = away) wins over `home_zone` (person count). |
 | `badges` | `{sensor, label, icon}`; the sensor's `first_floor` / `second_floor` attribute (or `floor_attr`) lists entities that are on; tapping opens a list grouped by area. |
-| `appliances` | `{label, icon, status, remaining, total, cycles, power, idle}`. Badge shows while the status is not in `idle` (default `power_off, initial, end, unavailable, unknown`). |
+| `appliances` | `{label, icon, status, remaining, total, cycles, power, idle}`. Badge shows while the status is not in `idle` (default `power_off, initial, unavailable, unknown`), so a finished cycle (`end`) stays visible until the machine is powered off. |
 | `power` | Rows for the Power sheet (shown away-from-home as "<name> still on" when left on). |
 | `sleep`, `alarm`, `visitor`, `zones` | Quick actions, doorbell pop-up and occupancy buttons. |
 | `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`. |
