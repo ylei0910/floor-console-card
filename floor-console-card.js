@@ -60,6 +60,8 @@ var FCC_I18N = {
     "w_rainy": "有雨",
     "vacuum": "扫地机",
     "vacuum_busy": "{name}在打扫",
+    "vacuum_error": "{name} 故障",
+    "vacuum_paused": "{name}已暂停",
     "vs_docked": "已回充",
     "vs_cleaning": "清扫中",
     "vs_returning": "回充中",
@@ -166,6 +168,8 @@ var FCC_I18N = {
     "w_rainy": "Rainy",
     "vacuum": "Vacuum",
     "vacuum_busy": "{name} cleaning",
+    "vacuum_error": "{name} fault",
+    "vacuum_paused": "{name} paused",
     "vs_docked": "Docked",
     "vs_cleaning": "Cleaning",
     "vs_returning": "Returning",
@@ -307,8 +311,9 @@ class FloorConsoleCard extends HTMLElement {
     $("scrim").addEventListener("click", function (e) { if (e.target === $("scrim")) this._closeSheet(); }.bind(this));
     $("radialTrigger").addEventListener("click", this._openAreaList.bind(this));
     $("badges").addEventListener("click", function (e) {
-      var badge = e.target.closest(".badge[data-list-sensor], .badge[data-power], .badge[data-appl]");
+      var badge = e.target.closest(".badge[data-list-sensor], .badge[data-power], .badge[data-appl], .badge[data-vac]");
       if (!badge) return;
+      if (badge.hasAttribute("data-vac")) { this._moreInfo((this._config || {}).vacuum); return; }
       if (badge.hasAttribute("data-appl")) { this._openApplianceSheet(parseInt(badge.getAttribute("data-appl"), 10)); return; }
       if (badge.hasAttribute("data-power")) { this._openPowerSheet(); return; }
       this._openEntityListSheet(badge.getAttribute("data-list-sensor"), badge.getAttribute("data-list-title"), badge.getAttribute("data-list-icon"));
@@ -1169,7 +1174,13 @@ class FloorConsoleCard extends HTMLElement {
     }.bind(this));
     if (cfg.vacuum) {
       var vacuum = get(cfg.vacuum);
-      if (vacuum !== "docked" && vacuum !== "idle" && vacuum !== "unavailable") out.push(this._badgeHTML("--on", "i-vacuum", this._t("vacuum_busy", { name: (h.states[cfg.vacuum] && h.states[cfg.vacuum].attributes.friendly_name) || this._t("vacuum") })));
+      var vst = h.states[cfg.vacuum];
+      // integrations often repeat the name ("Mary  Mary"): collapse it
+      var vw = ((vst && vst.attributes.friendly_name) || this._t("vacuum")).trim().split(/\s+/);
+      var vh = vw.length / 2;
+      var vname = vw.length % 2 === 0 && vw.slice(0, vh).join(" ") === vw.slice(vh).join(" ") ? vw.slice(0, vh).join(" ") : vw.join(" ");
+      var vkey = { cleaning: "vacuum_busy", returning: "vacuum_busy", paused: "vacuum_paused", error: "vacuum_error" }[vacuum];
+      if (vkey) out.push(this._badgeHTML(vacuum === "error" ? "--alert" : "--on", "i-vacuum", this._t(vkey, { name: vname })).replace('class="badge"', 'class="badge" data-vac="1"'));
     }
     (cfg.appliances || []).forEach(function (a, i) {
       var b = this._applianceBadge(a, i);
