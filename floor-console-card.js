@@ -855,7 +855,7 @@ class FloorConsoleCard extends HTMLElement {
     var isDev = function (r) { return a.pullout && r.entity && (r.entity.indexOf("fan.") === 0 || r.entity.indexOf("climate.") === 0 || r.entity.indexOf("media_player.") === 0 || r.entity.indexOf("vacuum.") === 0); };
     var tt = this._t.bind(this);
     var devRows = allRows.filter(isDev).map(function (r) {
-      return Object.assign({}, r, { dev: true, devLabel: allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv"), vacuum: tt("vacuum") }[r.entity.split(".")[0]]) });
+      return Object.assign({}, r, { dev: true, devLabel: r.entity.indexOf("vacuum.") === 0 || allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv") }[r.entity.split(".")[0]]) });
     });
     var applRows = allRows.filter(function (r) { return r.appliance != null; });
     var plainRows = allRows.filter(function (r) { return !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
