@@ -60,6 +60,12 @@ var FCC_I18N = {
     "w_rainy": "有雨",
     "vacuum": "扫地机",
     "vacuum_busy": "{name}在打扫",
+    "vs_docked": "已回充",
+    "vs_cleaning": "清扫中",
+    "vs_returning": "回充中",
+    "vs_idle": "待命",
+    "vs_paused": "已暂停",
+    "vs_error": "故障",
     "away": "离家",
     "left_on": "{label}未关",
     "armed_home": "在家布防",
@@ -160,6 +166,12 @@ var FCC_I18N = {
     "w_rainy": "Rainy",
     "vacuum": "Vacuum",
     "vacuum_busy": "{name} cleaning",
+    "vs_docked": "Docked",
+    "vs_cleaning": "Cleaning",
+    "vs_returning": "Returning",
+    "vs_idle": "Idle",
+    "vs_paused": "Paused",
+    "vs_error": "Error",
     "away": "Away",
     "left_on": "{label} still on",
     "armed_home": "Armed home",
@@ -255,11 +267,26 @@ class FloorConsoleCard extends HTMLElement {
     // climate entities report their HVAC mode as the state ("cool", "dry", ...),
     // so anything other than off counts as on
     if (entity_id.indexOf("climate.") === 0 || entity_id.indexOf("media_player.") === 0) return ["off", "unavailable", "unknown"].indexOf(st.state) === -1;
+    // a vacuum is "on" while it is out cleaning or heading home
+    if (entity_id.indexOf("vacuum.") === 0) return st.state === "cleaning" || st.state === "returning";
     return st.state === "on" || st.state === "open" || st.state === "opening";
+  }
+  // status text under a pulled-out device tile (vacuums report their real state)
+  _devStatus(entity_id) {
+    var st = this._hass.states[entity_id];
+    if (entity_id.indexOf("vacuum.") === 0 && st) {
+      var key = "vs_" + st.state;
+      var txt = this._t(key);
+      return txt === key ? st.state : txt;
+    }
+    return this._t(this._isOn(entity_id) ? "on" : "off");
   }
   _toggle(entity_id) {
     var domain = entity_id.split(".")[0];
-    if (domain === "climate") {
+    if (domain === "vacuum") {
+      // tap while cleaning / returning sends it home, otherwise starts a run
+      this._svc("vacuum", this._isOn(entity_id) ? "return_to_base" : "start", entity_id);
+    } else if (domain === "climate") {
       var on = this._isOn(entity_id);
       this._svc("climate", on ? "turn_off" : "turn_on", entity_id);
     } else if (domain === "input_boolean") {
@@ -391,7 +418,7 @@ class FloorConsoleCard extends HTMLElement {
   _cleanName(n) { return String(n || "").replace(/\s*light ?bulb\d*$/i, "").trim(); }
 
   _iconFor(id, d, cfg) {
-    var base = { light: "i-bulb", fan: "i-fan", climate: "i-ac", media_player: "i-tv", cover: "i-curtain" }[d] || "i-bulb";
+    var base = { light: "i-bulb", fan: "i-fan", climate: "i-ac", media_player: "i-tv", cover: "i-curtain", vacuum: "i-vacuum" }[d] || "i-bulb";
     if (d !== "light") return base;
     var hints = cfg.icon_hints || [["chu_ju|ju_deng|gui", "i-cabinet"], ["chuang_lian", "i-curtain"], ["yang_tai", "i-balcony"], ["da_men", "i-door"]];
     for (var i = 0; i < hints.length; i++) if (new RegExp(hints[i][0]).test(id)) return hints[i][1];
@@ -404,7 +431,7 @@ class FloorConsoleCard extends HTMLElement {
       var m = st && st.attributes && st.attributes.entity_id;
       return Array.isArray(m) ? this._t("bulbs", { n: m.length }) : this._t("single");
     }
-    return { fan: this._t("fan"), climate: this._t("climate"), media_player: this._t("tv") }[d] || "";
+    return { fan: this._t("fan"), climate: this._t("climate"), media_player: this._t("tv"), vacuum: this._t("vacuum") }[d] || "";
   }
 
   _autoRows(ids, cfg, prefixes) {
@@ -707,7 +734,7 @@ class FloorConsoleCard extends HTMLElement {
     if (r.dev) {
       // Fan / air-con pulled out of the list: tap toggles, "⋯" opens more-info.
       return '<div class="dev-tile' + (on ? " on" : "") + '" data-entity="' + r.entity + '"><button class="dev-main">' + this._icon(r.icon) +
-        '<span class="dl"><b>' + r.devLabel + '</b><span class="ds">' + this._t(on ? "on" : "off") + '</span></span></button>' +
+        '<span class="dl"><b>' + r.devLabel + '</b><span class="ds">' + this._devStatus(r.entity) + '</span></span></button>' +
         '<button class="dev-more" aria-label="' + this._t("details") + '">⋯</button></div>';
     }
     if (r.gate) {
@@ -825,10 +852,10 @@ class FloorConsoleCard extends HTMLElement {
     if (a.talk) html += '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>';
     var allRows = a.rows || [];
     var masterRows = allRows.filter(function (r) { return r.master; });
-    var isDev = function (r) { return a.pullout && r.entity && (r.entity.indexOf("fan.") === 0 || r.entity.indexOf("climate.") === 0 || r.entity.indexOf("media_player.") === 0); };
+    var isDev = function (r) { return a.pullout && r.entity && (r.entity.indexOf("fan.") === 0 || r.entity.indexOf("climate.") === 0 || r.entity.indexOf("media_player.") === 0 || r.entity.indexOf("vacuum.") === 0); };
     var tt = this._t.bind(this);
     var devRows = allRows.filter(isDev).map(function (r) {
-      return Object.assign({}, r, { dev: true, devLabel: allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv") }[r.entity.split(".")[0]]) });
+      return Object.assign({}, r, { dev: true, devLabel: allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv"), vacuum: tt("vacuum") }[r.entity.split(".")[0]]) });
     });
     var applRows = allRows.filter(function (r) { return r.appliance != null; });
     var plainRows = allRows.filter(function (r) { return !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
@@ -1283,7 +1310,7 @@ class FloorConsoleCard extends HTMLElement {
       }
       var ds = row.querySelector(".ds");
       if (ds) {
-        var dwant = this._t(on ? "on" : "off");
+        var dwant = this._devStatus(entity);
         if (ds.textContent !== dwant) ds.textContent = dwant;
         return;
       }
