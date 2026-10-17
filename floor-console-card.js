@@ -1434,8 +1434,8 @@ class FloorConsoleCard extends HTMLElement {
 '.row .rlabel{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;overflow:hidden}' +
 '.row .rlabel b{flex:none;white-space:nowrap;font-size:.85rem;font-weight:600;color:var(--fg)}' +
 '.row .rlabel span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7rem;color:var(--fg-dim)}' +
-'.dev-bar{display:grid;grid-template-columns:repeat(var(--dev-cols,3),minmax(0,1fr));gap:8px;margin-bottom:6px}' +
-'.dev-bar.appl-bar{display:flex}' +
+'.dev-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}' +
+'.dev-bar:not(.appl-bar)>.dev-tile{flex:1 1 calc((100% - (var(--dev-cols,3) - 1) * 8px) / var(--dev-cols,3))}' +
 '.dev-tile{flex:1;min-width:0;display:flex;align-items:center;border-radius:14px;border:1px solid var(--line);background:var(--surface)}' +
 '.dev-tile.on{background:color-mix(in srgb,var(--accent) 20%,transparent);border-color:var(--accent)}' +
 '.dev-main{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 4px 8px 10px;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}' +
