@@ -535,6 +535,7 @@ class FloorConsoleCard extends HTMLElement {
       if (!ac.name && floorName && name.indexOf(floorName) === 0) name = name.slice(floorName.length);
       areas.push({
         id: aid, floor: a.floor_id, common: !!ac.common, name: name, roman: ac.roman || "",
+        devCols: ac.device_columns || cfg.device_columns || 3,
         icon: ac.icon || (hint && hint[1]) || "i-door",
         cat: ac.cat || (hint && hint[2]) || (a.floor_id ? "room" : "common"),
         rows: rows
@@ -862,7 +863,7 @@ class FloorConsoleCard extends HTMLElement {
     var curtainRows = allRows.filter(function (r) { return r.curtain; });
     var camRows = allRows.filter(function (r) { return r.camera; });
     if (masterRows.length || curtainRows.length) html += '<div class="master-bar">' + masterRows.concat(curtainRows).map(this._rowHTML.bind(this)).join("") + '</div>';
-    if (devRows.length) html += '<div class="dev-bar">' + devRows.map(this._rowHTML.bind(this)).join("") + '</div>';
+    if (devRows.length) html += '<div class="dev-bar" style="--dev-cols:' + (a.devCols || 3) + '">' + devRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     if (applRows.length) html += '<div class="dev-bar appl-bar">' + applRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     html += plainRows.map(this._rowHTML.bind(this)).join("");
     if (camRows.length) html += '<div class="cam-bar">' + camRows.map(this._rowHTML.bind(this)).join("") + '</div>';
@@ -1039,7 +1040,7 @@ class FloorConsoleCard extends HTMLElement {
       if (ids.length >= k[2]) masters.push({ master: true, kind: k[0], ids: ids });
     });
     var rows = masters.concat(this._applianceRows(a.id), a.rows);
-    this._openSheet({ id: a.id, name: a.name, roman: a.roman, icon: a.icon, common: a.common, status: this._areaStatus(a), rows: rows, back: true, pullout: true });
+    this._openSheet({ id: a.id, name: a.name, roman: a.roman, icon: a.icon, common: a.common, status: this._areaStatus(a), rows: rows, back: true, pullout: true, devCols: a.devCols });
     this._currentArea = a;
     this._lastArea = a;
   }
@@ -1433,7 +1434,8 @@ class FloorConsoleCard extends HTMLElement {
 '.row .rlabel{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;overflow:hidden}' +
 '.row .rlabel b{flex:none;white-space:nowrap;font-size:.85rem;font-weight:600;color:var(--fg)}' +
 '.row .rlabel span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7rem;color:var(--fg-dim)}' +
-'.dev-bar{display:flex;gap:8px;margin-bottom:6px}' +
+'.dev-bar{display:grid;grid-template-columns:repeat(var(--dev-cols,3),minmax(0,1fr));gap:8px;margin-bottom:6px}' +
+'.dev-bar.appl-bar{display:flex}' +
 '.dev-tile{flex:1;min-width:0;display:flex;align-items:center;border-radius:14px;border:1px solid var(--line);background:var(--surface)}' +
 '.dev-tile.on{background:color-mix(in srgb,var(--accent) 20%,transparent);border-color:var(--accent)}' +
 '.dev-main{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:8px 4px 8px 10px;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}' +
@@ -1441,7 +1443,7 @@ class FloorConsoleCard extends HTMLElement {
 '.dev-tile.on .dev-main svg{stroke:var(--accent-strong)}' +
 '.dev-main .dl{min-width:0;display:flex;flex-direction:column}' +
 '.dev-main b{font-size:.82rem;font-weight:700;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-'.dev-main .ds{font-size:.66rem;color:var(--fg-dim)}' +
+'.dev-main .ds{font-size:.66rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
 '.appl-bar{flex-wrap:wrap}.appl-tile{flex:1 1 calc(50% - 4px)}.appl-tile .dev-main{padding:9px 10px}' +
 '.dev-tile.on .ds{color:var(--accent-strong)}' +
 '.dev-more{flex:none;width:34px;align-self:stretch;border:none;border-left:1px solid var(--line);background:none;color:var(--fg-dim);font:inherit;font-size:1.1rem;cursor:pointer;border-radius:0 14px 14px 0}' +

@@ -84,9 +84,10 @@ entities:
 | `appliances` | `{label, icon, status, remaining, total, cycles, power, idle, area}`. Also listed as a row in the sheet of the area the status sensor belongs to (override with `area`). Badge shows while the status is not in `idle` (default `power_off, initial, unavailable, unknown`), so a finished cycle (`end`) stays visible until the machine is powered off. |
 | `power` | Rows for the Power sheet (shown away-from-home as "<name> still on" when left on). |
 | `sleep`, `alarm`, `visitor`, `zones` | Quick actions, doorbell pop-up and occupancy buttons. |
-| `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`. |
+| `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`, `device_columns`. |
 | `entities.<entity_id>` | `name`, `sub`, `icon`, `order`, `kind` (curtain / sheer). Overrides win over the automatic naming. |
 | `exclude`, `order`, `area_hints`, `icon_hints` | Hide entities, order areas, tune icon / category guesses. |
+| `device_columns` | Fan / air-con / TV / vacuum tiles per row in area sheets (default `3`; per-area override in `areas.<id>.device_columns`). |
 | `strip_area_prefix` | `false` keeps the area name in entity names inside area sheets (default strips it). |
 | `camera_ratios`, `sun_entity` | Per-camera aspect ratio (default `16/9`); sun entity for day / night loading frames. |
 
