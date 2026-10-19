@@ -708,7 +708,7 @@ class FloorConsoleCard extends HTMLElement {
         if (!x.rows.length) return;
         x.rows.forEach(function (r) { matched[r.entity] = true; });
         var rowsH = x.rows.map(this._rowHTML.bind(this));
-        var lines = x.rows.length === 2 ? [rowsH.join("")] : rowsH;
+        var lines = rowsH.filter(function (_, i) { return i % 2 === 0; }).map(function (r, i) { return r + (rowsH[2 * i + 1] || ""); });
         html += '<div class="row-section-label">' + x.name + '</div>' + lines.map(function (l) { return '<div class="row-line">' + l + '</div>'; }).join("");
       }.bind(this));
     }.bind(this));
