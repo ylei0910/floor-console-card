@@ -707,8 +707,9 @@ class FloorConsoleCard extends HTMLElement {
       parts.forEach(function (x) {
         if (!x.rows.length) return;
         x.rows.forEach(function (r) { matched[r.entity] = true; });
-        var rh = x.rows.map(this._rowHTML.bind(this)).join("");
-        html += '<div class="row-section-label">' + x.name + '</div>' + (x.rows.length === 2 ? '<div class="row-pair">' + rh + '</div>' : rh);
+        var rowsH = x.rows.map(this._rowHTML.bind(this));
+        var lines = x.rows.length === 2 ? [rowsH.join("")] : rowsH;
+        html += '<div class="row-section-label">' + x.name + '</div>' + lines.map(function (l) { return '<div class="row-line">' + l + '</div>'; }).join("");
       }.bind(this));
     }.bind(this));
     var leftover = ids.filter(function (id) { return !matched[id]; });
@@ -1404,11 +1405,12 @@ class FloorConsoleCard extends HTMLElement {
 '.area-section{margin-bottom:14px}' +
 '.area-section:last-child{margin-bottom:0}' +
 '.area-section-label{font-size:.68rem;font-weight:600;letter-spacing:.04em;color:var(--fg-dim);text-transform:uppercase;margin-bottom:4px}' +
-'.row-pair{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}' +
-'.row-pair .row{padding:6px 0;gap:8px;min-width:0}' +
-'.row-pair .row .rlabel{flex-direction:column;align-items:flex-start;gap:0}' +
-'.row-pair .row .rlabel span{max-width:100%;font-size:.66rem}' +
-'.row-pair .row .rlabel b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
+'.row-line{display:grid;grid-template-columns:1fr 1fr;column-gap:12px;border-bottom:1px solid var(--line)}' +
+'.row-line:last-child{border-bottom:none}' +
+'.row-line .row{padding:6px 0;gap:8px;min-width:0;border-bottom:none}' +
+'.row-line .row .rlabel{flex-direction:column;align-items:flex-start;gap:0}' +
+'.row-line .row .rlabel span{max-width:100%;font-size:.66rem}' +
+'.row-line .row .rlabel b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
 '.list-bar{position:sticky;top:0;z-index:2;padding:2px 0 6px;background:var(--surface-2)}' +
 '.alloff{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 4px;border-radius:999px;border:1px solid color-mix(in srgb,var(--alert) 40%,transparent);background:color-mix(in srgb,var(--alert) 10%,transparent);color:var(--alert);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}' +
 '.alloff svg{width:15px;height:15px;stroke:currentColor}' +
