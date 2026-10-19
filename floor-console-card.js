@@ -707,18 +707,16 @@ class FloorConsoleCard extends HTMLElement {
       parts.forEach(function (x) {
         if (!x.rows.length) return;
         x.rows.forEach(function (r) { matched[r.entity] = true; });
-        // one shared two-column grid; the room is the tile's sub-text
-        html += x.rows.map(function (r) { return this._rowHTML(Object.assign({}, r, { sub: x.name })); }.bind(this)).join("");
+        html += '<div class="row-section-label">' + x.name + '</div>' + x.rows.map(this._rowHTML.bind(this)).join("");
       }.bind(this));
     }.bind(this));
     var leftover = ids.filter(function (id) { return !matched[id]; });
     if (leftover.length) {
-      html += leftover.map(function (id) {
+      html += '<div class="row-section-label">' + this._t("other") + '</div>' + leftover.map(function (id) {
         var es = this._hass.states[id];
-        return this._rowHTML({ icon: icon, label: (es && es.attributes && es.attributes.friendly_name) || id, sub: this._t("other"), entity: id });
+        return this._rowHTML({ icon: icon, label: (es && es.attributes && es.attributes.friendly_name) || id, sub: id, entity: id });
       }.bind(this)).join("");
     }
-    if (html) html = '<div class="row-grid">' + html + '</div>';
     body.innerHTML = (html ? '<div class="list-bar"><button class="alloff" id="allOff">' + this._icon("i-power") + '<span>' + this._t("all_off") + '</span><span class="n">' + ids.length + '</span></button></div>' : "") + html || '<div class="note">' + this._t("nothing_on") + '</div>';
     this._wireRows(body);
     var allOff = body.querySelector("#allOff");
@@ -1405,11 +1403,6 @@ class FloorConsoleCard extends HTMLElement {
 '.area-section{margin-bottom:14px}' +
 '.area-section:last-child{margin-bottom:0}' +
 '.area-section-label{font-size:.68rem;font-weight:600;letter-spacing:.04em;color:var(--fg-dim);text-transform:uppercase;margin-bottom:4px}' +
-'.row-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}' +
-'.row-grid .row{padding:6px 0;gap:8px;min-width:0}' +
-'.row-grid .row .rlabel{flex-direction:column;align-items:flex-start;gap:0}' +
-'.row-grid .row .rlabel span{max-width:100%;font-size:.66rem}' +
-'.row-grid .row .rlabel b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}' +
 '.list-bar{position:sticky;top:0;z-index:2;padding:2px 0 6px;background:var(--surface-2)}' +
 '.alloff{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 4px;border-radius:999px;border:1px solid color-mix(in srgb,var(--alert) 40%,transparent);background:color-mix(in srgb,var(--alert) 10%,transparent);color:var(--alert);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}' +
 '.alloff svg{width:15px;height:15px;stroke:currentColor}' +
