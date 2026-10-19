@@ -522,7 +522,12 @@ class FloorConsoleCard extends HTMLElement {
       if (a.floor_id && cfg.floor && a.floor_id !== cfg.floor) return;
       var rows;
       if (ac.rows) {
-        rows = ac.rows.map(function (r) { return Object.assign({}, r); });
+        rows = ac.rows.map(function (r) {
+          var o = Object.assign({}, r);
+          // a configured entity row without `sub` gets the same default as an auto row
+          if (o.entity && o.sub == null && h.states[o.entity]) o.sub = self._subFor(o.entity, o.entity.split(".")[0]);
+          return o;
+        });
       } else {
         var skip = {};
         (ac.exclude || []).forEach(function (id) { skip[id] = true; });
