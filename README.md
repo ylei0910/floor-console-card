@@ -64,11 +64,10 @@ appliances:                  # badge while running + detail sheet on tap
     power: switch.washer_power                # optional, adds a power row (omit for read-only)
 camera_ratios: { camera.doorbell: "4/3" }
 areas:
-  garage:
-    rows:
-      - { icon: i-gate, label: Gate, gate: true, entity: switch.garage_gate, cam: camera.front_door }
+  garage: { add: [switch.garage_gate, camera.front_door] }
   kitchen: { roman: Kitchen }
 entities:
+  switch.garage_gate: { name: Gate, gate: true, cam: camera.front_door }
   light.kitchen_main: { name: Main light, order: 0 }
 ```
 
@@ -85,7 +84,7 @@ entities:
 | `power` | Rows for the Power sheet (shown away-from-home as "<name> still on" when left on). |
 | `sleep`, `alarm`, `visitor`, `zones` | Quick actions, doorbell pop-up and occupancy buttons. |
 | `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`, `device_columns`. |
-| `entities.<entity_id>` | `name`, `sub`, `icon`, `order`, `kind` (curtain / sheer). Overrides win over the automatic naming. |
+| `entities.<entity_id>` | `name`, `sub`, `icon`, `order`, `kind` (curtain / sheer), `gate: true` + `cam` (render a switch as a gate row with a live camera view). Overrides win over the automatic naming. |
 | `exclude`, `order`, `area_hints`, `icon_hints` | Hide entities, order areas, tune icon / category guesses. |
 | `device_columns` | Fan / air-con / TV / vacuum tiles per row in area sheets (default `3`; per-area override in `areas.<id>.device_columns`). |
 | `strip_area_prefix` | `false` keeps the area name in entity names inside area sheets (default strips it). |

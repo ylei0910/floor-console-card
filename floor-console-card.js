@@ -459,7 +459,7 @@ class FloorConsoleCard extends HTMLElement {
       return n;
     };
     list.sort(function (a, b) {
-      var da = rank[a.split(".")[0]], db = rank[b.split(".")[0]];
+      var da = (ents[a] || {}).gate ? 0.5 : rank[a.split(".")[0]], db = (ents[b] || {}).gate ? 0.5 : rank[b.split(".")[0]];
       if (da == null) da = 9;
       if (db == null) db = 9;
       if (da !== db) return da - db;
@@ -478,6 +478,7 @@ class FloorConsoleCard extends HTMLElement {
         curt[kd === "curtain" || kd === "sheer" ? kd : (gauze.test(id + " " + nameOf(id)) ? "sheer" : "curtain")].push(id);
         return;
       }
+      if (o.gate) { rows.push({ icon: o.icon || "i-gate", label: nameOf(id), gate: true, entity: id, cam: o.cam, trigger: o.trigger }); return; }
       if (d === "camera") { rows.push({ icon: "i-cctv", label: nameOf(id), sub: self._t("tap_view"), camera: id }); return; }
       rows.push({ icon: o.icon || self._iconFor(id, d, cfg), label: nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._subFor(id, d), entity: id });
     });
