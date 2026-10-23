@@ -247,27 +247,6 @@ class FloorConsoleCard extends HTMLElement {
   }
   getCardSize() { return 12; }
 
-  // Fill the visible viewport below the card's top edge: on iOS the view's
-  // 100% height can end short of the screen, leaving the page background
-  // showing under the card.
-  _fit() {
-    var top = this.getBoundingClientRect().top;
-    var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-    if (top < 0 || top > vh / 2) return;
-    this.style.minHeight = Math.max(560, Math.round(vh - top)) + "px";
-  }
-  connectedCallback() {
-    this._fitFn = this._fitFn || this._fit.bind(this);
-    window.addEventListener("resize", this._fitFn);
-    if (window.visualViewport) window.visualViewport.addEventListener("resize", this._fitFn);
-    this._fitTimers = [50, 400, 1500].map(function (ms) { return setTimeout(this._fitFn, ms); }.bind(this));
-  }
-  disconnectedCallback() {
-    window.removeEventListener("resize", this._fitFn);
-    if (window.visualViewport) window.visualViewport.removeEventListener("resize", this._fitFn);
-    (this._fitTimers || []).forEach(clearTimeout);
-  }
-
   // UI language: `language` in the card config, else the HA user language
   // (zh* -> Chinese, anything else -> English)
   _lang() {
@@ -1400,7 +1379,7 @@ class FloorConsoleCard extends HTMLElement {
     return th.fonts +
 '<style id="themeStyle">' + th.css + '</style>' +
 '<style>' +
-':host{display:block;height:100%;min-height:560px}' +
+':host{display:block;height:100%}' +
 '*{box-sizing:border-box}' +
 '.app{height:100%;min-height:560px;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font-body);-webkit-font-smoothing:antialiased;padding-inline:14px;padding-block:10px 10px;gap:8px;' +
 '  background-image:radial-gradient(ellipse 120% 50% at 50% 0%, color-mix(in srgb,var(--accent) 10%,transparent), transparent 60%), repeating-linear-gradient(100deg, color-mix(in srgb,var(--fg) 1.2%,transparent) 0px, color-mix(in srgb,var(--fg) 1.2%,transparent) 1px, transparent 1px, transparent 7px);}' +
