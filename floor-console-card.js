@@ -1379,7 +1379,7 @@ class FloorConsoleCard extends HTMLElement {
     return th.fonts +
 '<style id="themeStyle">' + th.css + '</style>' +
 '<style>' +
-':host{display:block;height:100%}' +
+':host{display:block;height:100%;position:relative;overflow:hidden}' +
 '*{box-sizing:border-box}' +
 '.app{height:100%;min-height:560px;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font-body);-webkit-font-smoothing:antialiased;padding-inline:14px;padding-block:10px 10px;gap:8px;' +
 '  background-image:radial-gradient(ellipse 120% 50% at 50% 0%, color-mix(in srgb,var(--accent) 10%,transparent), transparent 60%), repeating-linear-gradient(100deg, color-mix(in srgb,var(--fg) 1.2%,transparent) 0px, color-mix(in srgb,var(--fg) 1.2%,transparent) 1px, transparent 1px, transparent 7px);}' +
