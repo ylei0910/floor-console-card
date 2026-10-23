@@ -1379,7 +1379,7 @@ class FloorConsoleCard extends HTMLElement {
     return th.fonts +
 '<style id="themeStyle">' + th.css + '</style>' +
 '<style>' +
-':host{display:block;height:100%;position:relative;overflow:hidden}' +
+':host{display:block;height:100%;position:relative;overflow:hidden;touch-action:none;overscroll-behavior:none}' +
 '*{box-sizing:border-box}' +
 '.app{height:100%;min-height:560px;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font-body);-webkit-font-smoothing:antialiased;padding-inline:14px;padding-block:10px 10px;gap:8px;' +
 '  background-image:radial-gradient(ellipse 120% 50% at 50% 0%, color-mix(in srgb,var(--accent) 10%,transparent), transparent 60%), repeating-linear-gradient(100deg, color-mix(in srgb,var(--fg) 1.2%,transparent) 0px, color-mix(in srgb,var(--fg) 1.2%,transparent) 1px, transparent 1px, transparent 7px);}' +
@@ -1451,7 +1451,7 @@ class FloorConsoleCard extends HTMLElement {
 '.sheet-titles p{margin:2px 0 0;font-size:.74rem;color:var(--fg-dim)}' +
 '.sheet-close{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--fg-dim);font-size:.9rem;line-height:1;cursor:pointer}' +
 '.sheet-back{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--fg-dim);font-size:1.3rem;line-height:1;cursor:pointer;margin-right:2px}' +
-'.sheet-body{overflow-y:auto;margin-top:8px;padding-bottom:4px}' +
+'.sheet-body{overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;margin-top:8px;padding-bottom:4px}' +
 '.sheet-embed{position:relative;margin-bottom:10px;border-radius:12px;overflow:hidden}' +
 '.gate-cam{position:relative}' +
 '.cam-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}' +
