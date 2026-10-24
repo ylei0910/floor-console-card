@@ -236,8 +236,16 @@ class FloorConsoleCard extends HTMLElement {
     if (this._root) this._applyTheme();
   }
 
+  // `theme: sun` follows sun.sun (or `sun_entity`): `theme_day` (default
+  // light) while the sun is up, `theme_night` (default slate) otherwise
+  _themeName() {
+    var c = this._config || {};
+    if (c.theme !== "sun") return c.theme;
+    var sun = this._hass && this._hass.states[c.sun_entity || "sun.sun"];
+    return sun && sun.state === "above_horizon" ? (c.theme_day || "light") : (c.theme_night || "slate");
+  }
   _theme() {
-    var t = FCC_THEMES[this._config.theme] || FCC_THEMES.walnut;
+    var t = FCC_THEMES[this._themeName()] || FCC_THEMES.walnut;
     var vars = Object.assign({}, t.vars, this._config.theme_vars || {});
     return { fonts: t.fonts, css: ":root,:host{" + Object.keys(vars).map(function (k) { return "--" + k + ":" + vars[k] + ";"; }).join("") + "}" };
   }
@@ -263,6 +271,7 @@ class FloorConsoleCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._built) { this._build(); this._built = true; }
+    if (this._config.theme === "sun" && this._themeShown !== this._themeName()) { this._themeShown = this._themeName(); this._applyTheme(); }
     this._render();
   }
 
