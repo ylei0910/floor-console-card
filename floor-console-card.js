@@ -4,6 +4,7 @@ var FCC_THEMES = {
   walnut: { fonts: FCC_FONT_LINK, vars: { "bg": "#130d07", "surface": "#1d150c", "surface-2": "#271d12", "sheet-end": "#19120a", "line": "rgba(205,163,86,0.20)", "fg": "#f1e7d6", "fg-dim": "#a89a82", "accent": "#caa15a", "accent-strong": "#eec07c", "on": "#8ab98f", "info": "#8ca3b8", "alert": "#d97a55", "scrim": "rgba(6,4,2,0.6)", "font-display": '"Fraunces",ui-serif,Georgia,serif', "font-body": '"Manrope",ui-sans-serif,system-ui,sans-serif', "font-mono": '"JetBrains Mono",ui-monospace,monospace', "color-scheme": "dark" } },
   slate: { fonts: "", vars: Object.assign({ "bg": "#0f141a", "surface": "#161d26", "surface-2": "#1d2733", "sheet-end": "#121922", "line": "rgba(140,170,200,0.20)", "fg": "#e6edf5", "fg-dim": "#8c9bad", "accent": "#5aa9e6", "accent-strong": "#8cc8f5", "on": "#7fc99a", "info": "#8ca3b8", "alert": "#e0745a", "scrim": "rgba(3,6,10,0.6)", "color-scheme": "dark" }, FCC_SYS_FONTS) },
   light: { fonts: "", vars: Object.assign({ "bg": "#f1f3f6", "surface": "#ffffff", "surface-2": "#f7f8fa", "sheet-end": "#eaedf2", "line": "rgba(20,35,60,0.13)", "fg": "#1b2430", "fg-dim": "#6b7686", "accent": "#2f7de1", "accent-strong": "#1b5fc0", "on": "#2e9e5b", "info": "#5b7a99", "alert": "#d9482b", "scrim": "rgba(15,25,40,0.35)", "color-scheme": "light" }, FCC_SYS_FONTS) },
+  "walnut-light": { fonts: FCC_FONT_LINK, vars: { "bg": "#f4f1ec", "surface": "#ffffff", "surface-2": "#f7f4ef", "sheet-end": "#efebe4", "line": "rgba(60,50,30,0.18)", "fg": "#2a241a", "fg-dim": "#7a705f", "accent": "#a8741a", "accent-strong": "#8a5c0e", "on": "#3f8f55", "info": "#4f7191", "alert": "#c4552e", "scrim": "rgba(30,25,15,0.35)", "font-display": '"Fraunces",ui-serif,Georgia,serif', "font-body": '"Manrope",ui-sans-serif,system-ui,sans-serif', "font-mono": '"JetBrains Mono",ui-monospace,monospace', "color-scheme": "light" } },
   auto: { fonts: "", vars: Object.assign({ "bg": "var(--primary-background-color,#111)", "surface": "var(--card-background-color,#1c1c1c)", "surface-2": "var(--secondary-background-color,#222)", "sheet-end": "var(--secondary-background-color,#222)", "line": "var(--divider-color,rgba(128,128,128,0.3))", "fg": "var(--primary-text-color,#eee)", "fg-dim": "var(--secondary-text-color,#999)", "accent": "var(--primary-color,#03a9f4)", "accent-strong": "var(--accent-color,#ff9800)", "on": "var(--success-color,#43a047)", "info": "var(--info-color,#039be5)", "alert": "var(--error-color,#db4437)", "scrim": "rgba(0,0,0,0.5)", "color-scheme": "light dark" }, FCC_SYS_FONTS) }
 };
 
@@ -240,9 +241,10 @@ class FloorConsoleCard extends HTMLElement {
   // light) while the sun is up, `theme_night` (default slate) otherwise
   _themeName() {
     var c = this._config || {};
-    if (c.theme !== "sun") return c.theme;
+    var pair = { "sun": ["light", "slate"], "walnut-sun": ["walnut-light", "walnut"] }[c.theme];
+    if (!pair) return c.theme;
     var sun = this._hass && this._hass.states[c.sun_entity || "sun.sun"];
-    return sun && sun.state === "above_horizon" ? (c.theme_day || "light") : (c.theme_night || "slate");
+    return sun && sun.state === "above_horizon" ? (c.theme_day || pair[0]) : (c.theme_night || pair[1]);
   }
   _theme() {
     var t = FCC_THEMES[this._themeName()] || FCC_THEMES.walnut;
@@ -271,7 +273,7 @@ class FloorConsoleCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._built) { this._build(); this._built = true; }
-    if (this._config.theme === "sun" && this._themeShown !== this._themeName()) { this._themeShown = this._themeName(); this._applyTheme(); }
+    if (this._themeName() !== this._config.theme && this._themeShown !== this._themeName()) { this._themeShown = this._themeName(); this._applyTheme(); }
     this._render();
   }
 
