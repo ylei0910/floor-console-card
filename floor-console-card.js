@@ -1170,6 +1170,9 @@ class FloorConsoleCard extends HTMLElement {
     // the live stream is shown, with the card's spinner while it connects.
     var doorbell = this._isDoorbell(stream);
     stream = doorbell ? this._doorbell() : stream;
+    // `stream_names` maps a camera entity to the go2rtc stream to play (e.g. a
+    // small H.264 sub-stream for a wall panel that can't decode the main one)
+    stream = ((this._config || {}).stream_names || {})[stream] || stream;
     var streams = doorbell ? [talk
       ? { url: stream, mode: "webrtc,webrtc/tcp,mse", name: "🎙️", media: "video,audio,microphone" }
       : { url: stream, mode: "webrtc,webrtc/tcp", name: "🎙️🚫", media: "video,audio" }
@@ -1541,6 +1544,9 @@ class FloorConsoleCard extends HTMLElement {
 '.app.panel .qa-btn{padding:8px 6px;gap:3px}' +
 '.app.panel .qa-btn .icon{width:30px;height:30px}' +
 '.app.panel .row{padding:9px 2px}' +
+'.app.panel .area-grid{grid-template-columns:repeat(5,1fr);gap:8px 4px;padding:2px 0}' +
+'.app.panel .area-cell .icon{width:46px;height:46px}' +
+'.app.panel .area-cell{gap:4px}' +
 '.app.panel .sheet{max-height:94%}' +
 '.quickactions{flex:none;display:flex;gap:8px}' +
 '.qa-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;touch-action:none;}' +
