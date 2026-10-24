@@ -1547,7 +1547,15 @@ class FloorConsoleCard extends HTMLElement {
 '.app.panel .area-grid{grid-template-columns:repeat(5,1fr);gap:8px 4px;padding:2px 0}' +
 '.app.panel .area-cell .icon{width:46px;height:46px}' +
 '.app.panel .area-cell{gap:4px}' +
-'.app.panel .sheet{max-height:94%}' +
+'.app.panel .sheet{max-height:100%;height:100%;border-radius:0}' +
+'.app.panel .sheet-grab{display:none}' +
+'.app.panel .sheet-head p{display:none}' +
+'.app.panel .sheet-body{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-content:start}' +
+'.app.panel .sheet-body>*{grid-column:1/-1}' +
+'.app.panel .sheet-body>.row:not(.gate){grid-column:auto;min-width:0}' +
+'.app.panel .sheet-body>.row .rlabel{flex-direction:column;align-items:flex-start;gap:0}' +
+'.app.panel .sheet-body>.row .rlabel b{max-width:100%;overflow:hidden;text-overflow:ellipsis}' +
+'.app.panel .sheet-body>.row .rlabel span{max-width:100%}' +
 '.quickactions{flex:none;display:flex;gap:8px}' +
 '.qa-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;touch-action:none;}' +
 '.qa-btn .icon{width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,transparent);display:flex;align-items:center;justify-content:center}' +
