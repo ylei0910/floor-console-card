@@ -76,7 +76,7 @@ entities:
 | Key | Description |
 |---|---|
 | `floor` | Floor id whose areas are shown. |
-| `theme` / `theme_vars` | `walnut`, `slate`, `light`, `auto`, `walnut-light`, `sun` (light by day, slate by night) or `walnut-sun` (warm `walnut-light` by day, `walnut` by night) -- both follow `sun.sun`: `theme_day`, default `light`, while the sun is up, `theme_night`, default `slate`, otherwise); `theme_vars` overrides single colours (`bg`, `surface`, `surface-2`, `fg`, `fg-dim`, `accent`, `accent-strong`, `on`, `info`, `alert`, ...). |
+| `theme` / `theme_vars` | `walnut`, `slate`, `light`, `auto`, `walnut-light`, `walnut-grey`, `walnut-grey-light`, `walnut-grey-sun`, `sun` (light by day, slate by night) or `walnut-sun` (warm `walnut-light` by day, `walnut` by night) -- both follow `sun.sun`: `theme_day`, default `light`, while the sun is up, `theme_night`, default `slate`, otherwise); `theme_vars` overrides single colours (`bg`, `surface`, `surface-2`, `fg`, `fg-dim`, `accent`, `accent-strong`, `on`, `info`, `alert`, ...). |
 | `language` | `en` or `zh`; default follows the HA user language. |
 | `weather`, `vacuum`, `home_zone`, `presence` | Badge sources. `presence` (binary sensor, off = away) wins over `home_zone` (person count). |
 | `badges` | `{sensor, label, icon}`; the sensor's `first_floor` / `second_floor` attribute (or `floor_attr`) lists entities that are on; tapping opens a list grouped by area. |
