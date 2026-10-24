@@ -259,6 +259,48 @@ class FloorConsoleCard extends HTMLElement {
   }
   getCardSize() { return 12; }
 
+  // layout: panel (480x480 wall panel): clock, date, people chips, idle return
+  _renderPanel() {
+    var cfg = this._config || {};
+    var head = this._root && this._root.getElementById("panelHead");
+    if (!head) return;
+    var on = cfg.layout === "panel";
+    head.hidden = !on;
+    if (!on) return;
+    var now = new Date(), lang = this._lang() === "zh" ? "zh-CN" : "en-GB";
+    var clock = ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2);
+    var date = now.toLocaleDateString(lang, { month: "short", day: "numeric", weekday: "short" });
+    if (this._$("pClock").textContent !== clock) this._$("pClock").textContent = clock;
+    if (this._$("pDate").textContent !== date) this._$("pDate").textContent = date;
+    var h = this._hass;
+    var html = (cfg.people || []).map(function (p) {
+      var e = typeof p === "string" ? { entity: p } : p;
+      var st = h.states[e.entity];
+      var name = e.name || (st && st.attributes && st.attributes.friendly_name) || e.entity;
+      return '<div class="person' + (st && st.state === "home" ? " home" : "") + '"><span class="dot"></span>' + name + "</div>";
+    }).join("");
+    var pp = this._$("pPeople");
+    if (pp.innerHTML !== html) pp.innerHTML = html;
+  }
+  _idleReset() {
+    var sec = (this._config || {}).idle_return;
+    if (sec == null) sec = (this._config || {}).layout === "panel" ? 60 : 0;
+    clearTimeout(this._idleTimer);
+    if (!(sec > 0)) return;
+    this._idleTimer = setTimeout(function () { this._closeSheet(); }.bind(this), sec * 1000);
+  }
+  connectedCallback() {
+    this._clockTimer = setInterval(function () { if (this._hass) this._renderPanel(); }.bind(this), 15000);
+    this._idleFn = this._idleFn || this._idleReset.bind(this);
+    ["pointerdown", "touchstart", "keydown"].forEach(function (ev) { this.addEventListener(ev, this._idleFn, { capture: true, passive: true }); }.bind(this));
+    this._idleReset();
+  }
+  disconnectedCallback() {
+    clearInterval(this._clockTimer);
+    clearTimeout(this._idleTimer);
+    ["pointerdown", "touchstart", "keydown"].forEach(function (ev) { this.removeEventListener(ev, this._idleFn, { capture: true }); }.bind(this));
+  }
+
   // UI language: `language` in the card config, else the HA user language
   // (zh* -> Chinese, anything else -> English)
   _lang() {
@@ -277,6 +319,7 @@ class FloorConsoleCard extends HTMLElement {
     if (!this._built) { this._build(); this._built = true; }
     if (this._themeName() !== this._config.theme && this._themeShown !== this._themeName()) { this._themeShown = this._themeName(); this._applyTheme(); }
     this._render();
+    this._renderPanel();
   }
 
   _svc(domain, service, entity_id, data) {
@@ -887,6 +930,7 @@ class FloorConsoleCard extends HTMLElement {
   }
 
   _openSheet(a) {
+    this._idleReset();
     var wasOpen = this._$("scrim").classList.contains("open");
     var sheetEl = this._$("sheet");
     if (this._hAnim) { this._hAnim.cancel(); this._hAnim = null; sheetEl.classList.remove("morphing"); }
@@ -1481,6 +1525,23 @@ class FloorConsoleCard extends HTMLElement {
 '.occupancybtn .plabel b{display:block;font-size:.88rem;font-weight:600}' +
 '.occupancybtn .plabel span{display:block;font-size:.72rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
 '.occupancybtn .chev{flex:none;width:16px;height:16px;stroke:var(--fg-dim)}' +
+'.panelhead{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px}' +
+'.pclock{font-family:var(--font-display);font-size:2.6rem;font-weight:600;line-height:1;letter-spacing:.01em;color:var(--fg);font-variant-numeric:tabular-nums}' +
+'.pdate{font-size:.8rem;color:var(--fg-dim)}' +
+'.people{display:flex;gap:8px;justify-content:center;margin-top:6px}' +
+'.person{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 6px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:.8rem;font-weight:600;color:var(--fg-dim)}' +
+'.person .dot{width:9px;height:9px;border-radius:50%;background:var(--fg-dim)}' +
+'.person.home{color:var(--fg)}' +
+'.person.home .dot{background:var(--on);box-shadow:0 0 5px var(--on)}' +
+'.app.panel{min-height:0;padding-block:8px;gap:6px}' +
+'.app.panel .radialtrigger{width:92px;height:92px}' +
+'.app.panel .radialtrigger svg{width:26px;height:26px}' +
+'.app.panel .radialtrigger-hint{display:none}' +
+'.app.panel .badge{padding:6px 12px 6px 9px}' +
+'.app.panel .qa-btn{padding:8px 6px;gap:3px}' +
+'.app.panel .qa-btn .icon{width:30px;height:30px}' +
+'.app.panel .row{padding:9px 2px}' +
+'.app.panel .sheet{max-height:94%}' +
 '.quickactions{flex:none;display:flex;gap:8px}' +
 '.qa-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;touch-action:none;}' +
 '.qa-btn .icon{width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,transparent);display:flex;align-items:center;justify-content:center}' +
@@ -1548,7 +1609,8 @@ class FloorConsoleCard extends HTMLElement {
 'ha-switch:state(checked)::part(control){background:color-mix(in srgb,var(--accent) 30%,transparent);border-color:var(--accent)}' +
 'ha-switch:state(checked)::part(thumb){background:var(--accent-strong);border-color:var(--accent)}' +
 '</style>' +
-'<div class="app">' +
+'<div class="app' + ((this._config || {}).layout === "panel" ? " panel" : "") + '">' +
+'<div class="panelhead" id="panelHead" hidden><div class="pclock" id="pClock"></div><div class="pdate" id="pDate"></div><div class="people" id="pPeople"></div></div>' +
 '<div class="badges" id="badges"></div>' +
 '<div class="occupancylist" id="occupancyList"></div>' +
 '<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button></div>' +
