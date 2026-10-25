@@ -85,7 +85,7 @@ entities:
 | `sleep`, `alarm`, `visitor`, `zones` | Quick actions, doorbell pop-up and occupancy buttons. |
 | `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`, `device_columns`. |
 | `entities.<entity_id>` | `name`, `sub`, `icon`, `order`, `kind` (curtain / sheer), `gate: true` + `cam` (render a switch as a gate row with a live camera view). Overrides win over the automatic naming. |
-| `layout` | `mobile` (default) or `panel` (480x480 wall panel: clock + date, optional `people` chips (`[{entity, name}]`; omit for clock + date only), compact sizing, `idle_return` seconds (default 60 in panel layout) that closes sheets after no touch). |
+| `layout` | `mobile` (default) or `panel` (480x480 wall panel: clock + date, optional `people` chips (`[{entity, name}]`; omit for clock + date only), compact sizing, `idle_return` seconds (default 60 in panel layout) that closes sheets after no touch; `hide_header: true` hides HA's top toolbar so the card gets the full height). |
 | `stream_names` | `{camera_entity: go2rtc_stream}` – stream to play for a camera (e.g. an H.264 `_sub` stream for a wall panel). |
 | `exclude`, `order`, `area_hints`, `icon_hints` | Hide entities, order areas, tune icon / category guesses. |
 | `device_columns` | Fan / air-con / TV / vacuum tiles per row in area sheets (default `3`; per-area override in `areas.<id>.device_columns`). |

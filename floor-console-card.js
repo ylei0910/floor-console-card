@@ -266,6 +266,7 @@ class FloorConsoleCard extends HTMLElement {
     if (!head) return;
     var on = cfg.layout === "panel";
     head.hidden = !on;
+    this._hideHeader();
     if (!on) return;
     var now = new Date(), lang = this._lang() === "zh" ? "zh-CN" : "en-GB";
     var clock = ("0" + now.getHours()).slice(-2) + ":" + ("0" + now.getMinutes()).slice(-2);
@@ -282,6 +283,24 @@ class FloorConsoleCard extends HTMLElement {
     var pp = this._$("pPeople");
     if (pp.innerHTML !== html) pp.innerHTML = html;
   }
+  // layout: panel + hide_header: hide HA's toolbar (hui-root) and give its space to the view
+  _hideHeader() {
+    var want = (this._config || {}).layout === "panel" && (this._config || {}).hide_header === true;
+    var root = this._huiRoot;
+    if (!root) {
+      var n = this;
+      while (n && !(n.tagName === "HUI-ROOT")) n = n.parentNode || n.host;
+      root = this._huiRoot = n && n.shadowRoot;
+    }
+    if (!root) return;
+    var st = root.getElementById("fcc-hide-header");
+    if (want && !st) {
+      st = document.createElement("style");
+      st.id = "fcc-hide-header";
+      st.textContent = ".header{display:none!important}#view{padding-top:0!important;min-height:100vh!important}";
+      root.appendChild(st);
+    } else if (!want && st) st.remove();
+  }
   _idleReset() {
     var sec = (this._config || {}).idle_return;
     if (sec == null) sec = (this._config || {}).layout === "panel" ? 60 : 0;
@@ -294,8 +313,12 @@ class FloorConsoleCard extends HTMLElement {
     this._idleFn = this._idleFn || this._idleReset.bind(this);
     ["pointerdown", "touchstart", "keydown"].forEach(function (ev) { this.addEventListener(ev, this._idleFn, { capture: true, passive: true }); }.bind(this));
     this._idleReset();
+    this._hideHeader();
   }
   disconnectedCallback() {
+    var hh = this._huiRoot && this._huiRoot.getElementById("fcc-hide-header");
+    if (hh) hh.remove();
+    this._huiRoot = null;
     clearInterval(this._clockTimer);
     clearTimeout(this._idleTimer);
     ["pointerdown", "touchstart", "keydown"].forEach(function (ev) { this.removeEventListener(ev, this._idleFn, { capture: true }); }.bind(this));
