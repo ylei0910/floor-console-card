@@ -266,6 +266,8 @@ class FloorConsoleCard extends HTMLElement {
     if (!head) return;
     var on = cfg.layout === "panel";
     head.hidden = !on;
+    var app = this._root.querySelector(".app");
+    if (app) app.style.setProperty("--top-offset", (cfg.top_offset != null ? cfg.top_offset : 22) + "px");
     this._hideHeader();
     if (!on) return;
     var now = new Date(), lang = this._lang() === "zh" ? "zh-CN" : "en-GB";
@@ -1560,7 +1562,10 @@ class FloorConsoleCard extends HTMLElement {
 '.person .dot{width:9px;height:9px;border-radius:50%;background:var(--fg-dim)}' +
 '.person.home{color:var(--fg)}' +
 '.person.home .dot{background:var(--on);box-shadow:0 0 5px var(--on)}' +
-'.app.panel{min-height:0;padding-block:8px;gap:6px}' +
+'.app.panel{min-height:0;padding-block:var(--top-offset,22px) 8px;gap:6px}' +
+'.app.panel .badges,.app.panel .occupancylist{order:-1}' +
+'.app.panel .panelhead{margin-top:auto;margin-bottom:8px}' +
+'.app.panel .radialzone{flex:none;margin-bottom:auto}' +
 '.app.panel .radialtrigger{width:92px;height:92px}' +
 '.app.panel .radialtrigger svg{width:26px;height:26px}' +
 '.app.panel .radialtrigger-hint{display:none}' +
