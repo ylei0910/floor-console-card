@@ -1532,6 +1532,7 @@ class FloorConsoleCard extends HTMLElement {
 '.pclock{font-family:var(--font-display);font-size:2.6rem;font-weight:600;line-height:1;letter-spacing:.01em;color:var(--fg);font-variant-numeric:tabular-nums}' +
 '.pdate{font-size:.8rem;color:var(--fg-dim)}' +
 '.people{display:flex;gap:8px;justify-content:center;margin-top:6px}' +
+'.people:empty{display:none}' +
 '.person{display:flex;align-items:center;gap:7px;padding:5px 12px 5px 6px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:.8rem;font-weight:600;color:var(--fg-dim)}' +
 '.person .dot{width:9px;height:9px;border-radius:50%;background:var(--fg-dim)}' +
 '.person.home{color:var(--fg)}' +
