@@ -782,16 +782,20 @@ class FloorConsoleCard extends HTMLElement {
         return false;
       });
     });
+    var groups = [];
     secs.forEach(function (sec) {
       var parts = [sec];
       sharedOrder.forEach(function (k) { if (shared[k].after === sec.name) parts.push(shared[k]); });
-      parts.forEach(function (x) {
-        if (!x.rows.length) return;
-        x.rows.forEach(function (r) { matched[r.entity] = true; });
-        var rowsH = x.rows.map(this._rowHTML.bind(this));
-        var lines = rowsH.filter(function (_, i) { return i % 2 === 0; }).map(function (r, i) { return r + (rowsH[2 * i + 1] || ""); });
-        html += '<div class="row-section-label">' + x.name + '</div>' + lines.map(function (l) { return '<div class="row-line">' + l + '</div>'; }).join("");
-      }.bind(this));
+      parts.forEach(function (x) { if (x.rows.length) groups.push(x); });
+    });
+    // Two rows per line only if some area actually fills a second column;
+    // otherwise every row spans the full sheet width.
+    var lineCls = groups.some(function (x) { return x.rows.length > 1; }) ? "row-line" : "row-line solo";
+    groups.forEach(function (x) {
+      x.rows.forEach(function (r) { matched[r.entity] = true; });
+      var rowsH = x.rows.map(this._rowHTML.bind(this));
+      var lines = rowsH.filter(function (_, i) { return i % 2 === 0; }).map(function (r, i) { return r + (rowsH[2 * i + 1] || ""); });
+      html += '<div class="row-section-label">' + x.name + '</div>' + lines.map(function (l) { return '<div class="' + lineCls + '">' + l + '</div>'; }).join("");
     }.bind(this));
     var leftover = ids.filter(function (id) { return !matched[id]; });
     if (leftover.length) {
@@ -1492,6 +1496,7 @@ class FloorConsoleCard extends HTMLElement {
 '.area-section-label{font-size:.68rem;font-weight:600;letter-spacing:.04em;color:var(--fg-dim);text-transform:uppercase;margin-bottom:4px}' +
 '.row-line{display:grid;grid-template-columns:1fr 1fr;column-gap:12px;border-bottom:1px solid var(--line)}' +
 '.row-line:last-child{border-bottom:none}' +
+'.row-line.solo{grid-template-columns:1fr}' +
 '.row-line .row{padding:6px 0;gap:8px;min-width:0;border-bottom:none}' +
 '.row-line .row .rlabel{flex-direction:column;align-items:flex-start;gap:0}' +
 '.row-line .row .rlabel span{max-width:100%;font-size:.66rem}' +
