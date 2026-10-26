@@ -91,7 +91,8 @@ var FCC_I18N = {
     "gate_alert_bar": "大门已开启",
     "gate_alert_tap": "点击关闭大门",
     "more_items": "… 还有 {n} 项",
-    "alerts_chip": "↑ 提醒 {n}",
+    "alerts_chip": "↑ 有 {n} 项提醒",
+    "alerts_chip_sub": "点击或下拉返回",
     "view": "查看 ›",
     "back": "返回",
     "close": "关闭",
@@ -206,6 +207,7 @@ var FCC_I18N = {
     "gate_alert_tap": "Tap to close the gate",
     "more_items": "… {n} more",
     "alerts_chip": "↑ {n} alerts",
+    "alerts_chip_sub": "Tap or swipe down to return",
     "view": "View ›",
     "back": "Back",
     "close": "Close",
@@ -1592,7 +1594,9 @@ class FloorConsoleCard extends HTMLElement {
     var list = this._$("occupancyList");
     this._$("occWrap").hidden = !list.children.length;
     var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving"); }).length;
-    this._$("pgChip").textContent = this._t("alerts_chip", { n: n });
+    var chip = this._$("pgChip");
+    chip.querySelector("b").textContent = this._t("alerts_chip", { n: n });
+    chip.querySelector(".plabel span").textContent = this._t("alerts_chip_sub");
     this._occMore();
   }
 
@@ -1811,8 +1815,10 @@ class FloorConsoleCard extends HTMLElement {
 '.app.compact:not(.page-home) .quickactions{margin-top:auto}.app.compact:not(.page-home) .visitorbar{margin-top:0}' +
 '.app.compact:not(.page-home) .radialzone,.app.compact .radialtrigger-hint,.app.panel.compact:not(.page-home) .panelhead{display:none}' +
 '.app.compact.page-home .occwrap{display:none}' +
-'.pgchip{display:none;flex:none;align-self:center;padding:5px 16px;border-radius:999px;border:1px solid var(--alert);background:color-mix(in srgb,var(--alert) 14%,var(--surface));color:var(--alert);font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}' +
-'.app.compact.page-home .pgchip{display:block}.app.panel .pgchip{order:-1}' +
+'.pgchip{display:none;flex:none;width:100%;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;border:1px solid var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface));color:var(--fg);font:inherit;text-align:left;cursor:pointer}' +
+'.pgchip .plabel{flex:1;min-width:0}.pgchip .plabel b{display:block;font-size:.88rem;font-weight:600;color:var(--alert)}' +
+'.pgchip .plabel span{display:block;font-size:.72rem;color:var(--fg-dim)}.pgchip .chev{flex:none;width:16px;height:16px;stroke:var(--alert)}' +
+'.app.compact.page-home .pgchip{display:flex}.app.panel .pgchip{order:-1}' +
 '@keyframes pgIn{from{opacity:0;transform:translateY(var(--pg-in,22px))}to{opacity:1;transform:none}}' +
 '@keyframes pgOut{to{opacity:0;transform:translateY(var(--pg-out,-22px))}}' +
 '.app.pg-out-alerts .occwrap,.app.pg-out-home .panelhead,.app.pg-out-home .radialzone,.app.pg-out-home .pgchip{animation:pgOut .2s ease forwards}' +
@@ -1907,7 +1913,7 @@ class FloorConsoleCard extends HTMLElement {
 '<div class="app' + ((this._config || {}).layout === "panel" ? " panel" : "") + '">' +
 '<div class="panelhead" id="panelHead" hidden><div class="pclock" id="pClock"></div><div class="pdate" id="pDate"></div><div class="people" id="pPeople"></div></div>' +
 '<div class="badges" id="badges"></div>' +
-'<button class="pgchip" id="pgChip"></button>' +
+'<button class="pgchip" id="pgChip"><span class="plabel"><b></b><span></span></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>' +
 '<div class="occwrap" id="occWrap" hidden><div class="occupancylist" id="occupancyList"></div><button class="occmore" id="occMore" hidden></button></div>' +
 '<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button></div>' +
 '<p class="radialtrigger-hint">' + this._t("hint_pick") + '</p>' +
