@@ -83,6 +83,7 @@ entities:
 | `appliances` | `{label, icon, status, remaining, total, cycles, power, idle, area}`. Also listed as a row in the sheet of the area the status sensor belongs to (override with `area`). Badge shows while the status is not in `idle` (default `power_off, initial, unavailable, unknown`), so a finished cycle (`end`) stays visible until the machine is powered off. |
 | `power` | Rows for the Power sheet (shown away-from-home as "<name> still on" when left on). |
 | `sleep`, `alarm`, `visitor`, `zones` | Quick actions, doorbell pop-up and occupancy buttons. |
+| `gate_alert` | `{ entity: switch.gate }` — a card appears on the home screen while the switch is `on`; one tap turns it off. |
 | `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`, `device_columns`. |
 | `entities.<entity_id>` | `name`, `sub`, `icon`, `order`, `kind` (curtain / sheer), `gate: true` + `cam` (render a switch as a gate row with a live camera view). Overrides win over the automatic naming. |
 | `layout` | `mobile` (default) or `panel` (480x480 wall panel: clock + date, optional `people` chips (`[{entity, name}]`; omit for clock + date only), compact sizing, `idle_return` seconds (default 60 in panel layout) that closes sheets after no touch; `hide_header: true` hides HA's top toolbar so the card gets the full height; `top_offset` px of top padding, default 22; badges sit on top, clock + date just above the area button). |

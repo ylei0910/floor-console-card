@@ -88,6 +88,8 @@ var FCC_I18N = {
     "hold_open": "按住开启",
     "visitor_bar": "有访客按门铃",
     "visitor_tap": "点击查看访客画面",
+    "gate_alert_bar": "大门已开启",
+    "gate_alert_tap": "点击关闭大门",
     "view": "查看 ›",
     "back": "返回",
     "close": "关闭",
@@ -198,6 +200,8 @@ var FCC_I18N = {
     "hold_open": "Hold to open",
     "visitor_bar": "Someone rang the doorbell",
     "visitor_tap": "Tap to see the visitor",
+    "gate_alert_bar": "Gate is open",
+    "gate_alert_tap": "Tap to close the gate",
     "view": "View ›",
     "back": "Back",
     "close": "Close",
@@ -406,7 +410,10 @@ class FloorConsoleCard extends HTMLElement {
     $("visitorBtn").addEventListener("click", this._openVisitorSheet.bind(this));
     $("occupancyList").addEventListener("click", function (e) {
       var btn = e.target.closest(".occupancybtn");
-      if (btn) this._openZoneSheet(btn.getAttribute("data-zone"));
+      if (!btn) return;
+      // gate_alert row: one tap closes the open gate, no confirmation
+      if (btn.hasAttribute("data-gate")) this._svc("switch", "turn_off", this._config.gate_alert.entity);
+      else this._openZoneSheet(btn.getAttribute("data-zone"));
     }.bind(this));
     $("powerBtn").addEventListener("click", this._openPowerSheet.bind(this));
     $("sleepBtn").addEventListener("click", function () {
@@ -1348,6 +1355,11 @@ class FloorConsoleCard extends HTMLElement {
       this._prevVisitor = visitor;
     }
 
+    // gate alert card: shown while the gate is open, one tap closes it
+    var ga = cfg.gate_alert;
+    this._gateOpen = !!(ga && ga.entity && get(ga.entity) === "on");
+    this._renderOccupancy();
+
     // gate status changed (by anyone) while a sheet with the gate row is open
     var gateRow = this._gateRow();
     var gateState = gateRow ? get(gateRow.entity) : undefined;
@@ -1396,11 +1408,12 @@ class FloorConsoleCard extends HTMLElement {
 
   _renderOccupancy() {
     var zones = this._zones().filter(function (z) { return this._occ[z.key] && this._occ[z.key].on; }.bind(this));
-    var key = zones.map(function (z) { return z.key; }).join(",");
+    var key = zones.map(function (z) { return z.key; }).join(",") + (this._gateOpen ? "|gate" : "");
     if (key === this._occKey) return;
     this._occKey = key;
     var tt = this._t.bind(this);
-    this._$("occupancyList").innerHTML = zones.map(function (z) {
+    var gate = this._gateOpen ? '<button class="occupancybtn gatebtn" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>' : "";
+    this._$("occupancyList").innerHTML = gate + zones.map(function (z) {
       return '<button class="occupancybtn" data-zone="' + z.key + '"><span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' +
         '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>';
     }).join("");
@@ -1557,6 +1570,9 @@ class FloorConsoleCard extends HTMLElement {
 '.occupancybtn .plabel{flex:1;min-width:0}' +
 '.occupancybtn .plabel b{display:block;font-size:.88rem;font-weight:600}' +
 '.occupancybtn .plabel span{display:block;font-size:.72rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+'.gatebtn{border-color:var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
+'.gatebtn .plabel b{color:var(--alert)}' +
+'.gatebtn .gclose{flex:none;font-size:.82rem;font-weight:600;color:var(--alert)}' +
 '.occupancybtn .chev{flex:none;width:16px;height:16px;stroke:var(--fg-dim)}' +
 '.panelhead{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px}' +
 '.pclock{font-family:var(--font-display);font-size:2.6rem;font-weight:600;line-height:1;letter-spacing:.01em;color:var(--fg);font-variant-numeric:tabular-nums}' +
