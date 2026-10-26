@@ -91,6 +91,7 @@ var FCC_I18N = {
     "gate_alert_bar": "大门已开启",
     "gate_alert_tap": "点击关闭大门",
     "more_items": "… 还有 {n} 项",
+    "alerts_chip": "↑ 提醒 {n}",
     "view": "查看 ›",
     "back": "返回",
     "close": "关闭",
@@ -204,6 +205,7 @@ var FCC_I18N = {
     "gate_alert_bar": "Gate is open",
     "gate_alert_tap": "Tap to close the gate",
     "more_items": "… {n} more",
+    "alerts_chip": "↑ {n} alerts",
     "view": "View ›",
     "back": "Back",
     "close": "Close",
@@ -287,7 +289,7 @@ class FloorConsoleCard extends HTMLElement {
     var list = this._$("occupancyList"), top = list.scrollTop, cam = list.querySelector(".occcam:not(.leaving)");
     var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // everything shown at its natural size, as if there were no limits
-    app.classList.remove("compact");
+    app.classList.remove("compact", "page-home");
     app.classList.add("measuring");
     list.style.maxHeight = "";
     if (cam) { cam.classList.remove("shrunk"); cam.style.removeProperty("--cam-h"); }
@@ -316,6 +318,8 @@ class FloorConsoleCard extends HTMLElement {
       if (over > 0) list.style.maxHeight = Math.max(56, list.offsetHeight - over) + "px";
     }
     app.classList.remove("measuring");
+    if (app.classList.contains("compact")) { if (this._page === "home") app.classList.add("page-home"); }
+    else { this._page = "alerts"; clearTimeout(this._pgTimer); }
     list.scrollTop = top;
     this._occMore();
   }
@@ -369,7 +373,7 @@ class FloorConsoleCard extends HTMLElement {
     if (sec == null) sec = (this._config || {}).layout === "panel" ? 60 : 0;
     clearTimeout(this._idleTimer);
     if (!(sec > 0)) return;
-    this._idleTimer = setTimeout(function () { this._closeSheet(); }.bind(this), sec * 1000);
+    this._idleTimer = setTimeout(function () { this._closeSheet(); this._setPage("alerts"); }.bind(this), sec * 1000);
   }
   connectedCallback() {
     this._clockTimer = setInterval(function () { if (this._hass) this._renderPanel(); }.bind(this), 15000);
@@ -481,6 +485,9 @@ class FloorConsoleCard extends HTMLElement {
       else if (el.classList) el.classList.remove("enter");
       this._fitSoon();
     }.bind(this));
+    $("occupancyList").addEventListener("scroll", function () { this._lastScroll = Date.now(); }.bind(this), { passive: true });
+    $("pgChip").addEventListener("click", function () { this._setPage("alerts"); }.bind(this));
+    this._pageGestures();
     $("occMore").addEventListener("click", function () {
       var l = $("occupancyList");
       l.scrollBy({ top: Math.max(60, l.clientHeight * 0.8), behavior: "smooth" });
@@ -1486,11 +1493,12 @@ class FloorConsoleCard extends HTMLElement {
     var key = want.join(",");
     if (key === this._occKey) return;
     this._occKey = key;
-    var list = this._$("occupancyList"), tt = this._t.bind(this), have = {}, prev = null;
+    var list = this._$("occupancyList"), tt = this._t.bind(this), have = {}, prev = null, fresh0 = false;
     Array.prototype.forEach.call(list.children, function (c) { if (!c.classList.contains("leaving")) have[c.getAttribute("data-k")] = c; });
     want.forEach(function (k) {
       var el = have[k], fresh = !el;
       if (fresh) {
+        fresh0 = true;
         var box = document.createElement("div");
         if (k === "gate") box.innerHTML = '<button class="occupancybtn gatebtn occitem" data-k="gate" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>';
         else if (k === "cam") box.innerHTML = '<div class="occitem occcam" data-k="cam"></div>';
@@ -1515,14 +1523,76 @@ class FloorConsoleCard extends HTMLElement {
       // animationend normally removes it; this is the fallback
       setTimeout(function () { if (el.parentNode) { el.remove(); this._occTidy(); this._fitSoon(); } }.bind(this), 450);
     }.bind(this));
+    if (fresh0 && this._occInit) this._setPage("alerts");
     this._occInit = true;
     this._occTidy();
     this._fitSoon();
   }
 
+  // Two "pages" while the alert list has pushed the clock + 区域 out of the
+  // card: the alerts, and the clock + 区域. A further swipe/wheel past the end
+  // of the list goes to the clock page; a swipe/wheel back (or the chip)
+  // returns. New alerts and 15 s without touch bring the alerts back.
+  _pageGestures() {
+    var self = this, app = this._root.querySelector(".app"), $ = this._$.bind(this), ts = null;
+    var atEnd = function () { var l = $("occupancyList"); return l.scrollTop + l.clientHeight >= l.scrollHeight - 2; };
+    var active = function () { return app.classList.contains("compact") && !$("scrim").classList.contains("open"); };
+    app.addEventListener("touchstart", function (e) {
+      if (self._page === "home") self._pgArm();
+      if (!active()) { ts = null; return; }
+      ts = { y: e.touches[0].clientY, end: self._page !== "home" && atEnd(), done: false };
+    }, { passive: true });
+    app.addEventListener("touchmove", function (e) {
+      if (!ts || ts.done) return;
+      var dy = e.touches[0].clientY - ts.y;
+      if (self._page === "home") { if (dy > 36) { ts.done = true; self._setPage("alerts"); } }
+      else if (ts.end && dy < -36) { ts.done = true; self._setPage("home"); }
+    }, { passive: true });
+    app.addEventListener("wheel", function (e) {
+      if (!active() || Date.now() - (self._pgAt || 0) < 700) return;
+      if (self._page === "home") { self._pgArm(); if (e.deltaY < -10) self._setPage("alerts"); return; }
+      // only a NEW scroll counts: the one that reached the end must have settled
+      if (e.deltaY > 0 && atEnd() && Date.now() - (self._lastScroll || 0) > 200) {
+        self._wheelAcc = (self._wheelAcc || 0) + e.deltaY;
+        if (self._wheelAcc > 40) { self._wheelAcc = 0; self._setPage("home"); }
+      } else self._wheelAcc = 0;
+    }, { passive: true });
+  }
+
+  _pgArm() {
+    clearTimeout(this._pgTimer);
+    this._pgTimer = setTimeout(function () { this._setPage("alerts"); }.bind(this), 15000);
+  }
+
+  _setPage(p) {
+    var app = this._root && this._root.querySelector(".app");
+    if (!app) return;
+    if (!app.classList.contains("compact")) { this._page = "alerts"; return; }
+    if (p === (this._page || "alerts") || this._pgBusy) return;
+    var self = this, up = p === "home";
+    this._pgAt = Date.now();
+    app.style.setProperty("--pg-out", up ? "-22px" : "22px");
+    app.style.setProperty("--pg-in", up ? "22px" : "-22px");
+    var outCls = "pg-out-" + (up ? "alerts" : "home"), inCls = "pg-in-" + p;
+    this._pgBusy = true;
+    app.classList.add(outCls);
+    setTimeout(function () {
+      self._pgBusy = false;
+      app.classList.remove(outCls);
+      self._page = p;
+      app.classList.toggle("page-home", up);
+      app.classList.add(inCls);
+      setTimeout(function () { app.classList.remove(inCls); }, 360);
+      if (up) self._pgArm(); else clearTimeout(self._pgTimer);
+      self._fitSoon();
+    }, 200);
+  }
+
   _occTidy() {
     var list = this._$("occupancyList");
     this._$("occWrap").hidden = !list.children.length;
+    var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving"); }).length;
+    this._$("pgChip").textContent = this._t("alerts_chip", { n: n });
     this._occMore();
   }
 
@@ -1738,8 +1808,15 @@ class FloorConsoleCard extends HTMLElement {
 '.app.panel .badges,.app.panel .occwrap{order:-1}' +
 '.app.panel .panelhead{margin-top:auto;margin-bottom:8px}' +
 '.app.measuring>*{margin-top:0!important}.app.measuring>.radialzone{margin-bottom:0!important;flex:none!important}' +
-'.app.compact .quickactions{margin-top:auto}.app.compact .visitorbar{margin-top:0}' +
-'.app.compact .radialzone,.app.compact .radialtrigger-hint,.app.panel.compact .panelhead{display:none}' +
+'.app.compact:not(.page-home) .quickactions{margin-top:auto}.app.compact:not(.page-home) .visitorbar{margin-top:0}' +
+'.app.compact:not(.page-home) .radialzone,.app.compact .radialtrigger-hint,.app.panel.compact:not(.page-home) .panelhead{display:none}' +
+'.app.compact.page-home .occwrap{display:none}' +
+'.pgchip{display:none;flex:none;align-self:center;padding:5px 16px;border-radius:999px;border:1px solid var(--alert);background:color-mix(in srgb,var(--alert) 14%,var(--surface));color:var(--alert);font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}' +
+'.app.compact.page-home .pgchip{display:block}.app.panel .pgchip{order:-1}' +
+'@keyframes pgIn{from{opacity:0;transform:translateY(var(--pg-in,22px))}to{opacity:1;transform:none}}' +
+'@keyframes pgOut{to{opacity:0;transform:translateY(var(--pg-out,-22px))}}' +
+'.app.pg-out-alerts .occwrap,.app.pg-out-home .panelhead,.app.pg-out-home .radialzone,.app.pg-out-home .pgchip{animation:pgOut .2s ease forwards}' +
+'.app.pg-in-alerts .occwrap,.app.pg-in-home .panelhead,.app.pg-in-home .radialzone,.app.pg-in-home .pgchip{animation:pgIn .32s cubic-bezier(.2,.8,.2,1)}' +
 '.app.panel .radialzone{flex:none;margin-bottom:auto}' +
 '.app.panel .radialtrigger{width:92px;height:92px}' +
 '.app.panel .radialtrigger svg{width:26px;height:26px}' +
@@ -1830,6 +1907,7 @@ class FloorConsoleCard extends HTMLElement {
 '<div class="app' + ((this._config || {}).layout === "panel" ? " panel" : "") + '">' +
 '<div class="panelhead" id="panelHead" hidden><div class="pclock" id="pClock"></div><div class="pdate" id="pDate"></div><div class="people" id="pPeople"></div></div>' +
 '<div class="badges" id="badges"></div>' +
+'<button class="pgchip" id="pgChip"></button>' +
 '<div class="occwrap" id="occWrap" hidden><div class="occupancylist" id="occupancyList"></div><button class="occmore" id="occMore" hidden></button></div>' +
 '<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button></div>' +
 '<p class="radialtrigger-hint">' + this._t("hint_pick") + '</p>' +
