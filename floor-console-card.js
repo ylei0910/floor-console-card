@@ -90,6 +90,7 @@ var FCC_I18N = {
     "visitor_tap": "点击查看访客画面",
     "gate_alert_bar": "大门已开启",
     "gate_alert_tap": "点击关闭大门",
+    "more_items": "… 还有 {n} 项",
     "view": "查看 ›",
     "back": "返回",
     "close": "关闭",
@@ -202,6 +203,7 @@ var FCC_I18N = {
     "visitor_tap": "Tap to see the visitor",
     "gate_alert_bar": "Gate is open",
     "gate_alert_tap": "Tap to close the gate",
+    "more_items": "… {n} more",
     "view": "View ›",
     "back": "Back",
     "close": "Close",
@@ -281,18 +283,41 @@ class FloorConsoleCard extends HTMLElement {
       this._fitEl = app;
     }
     if (!app.clientHeight) return;
+    var H = app.clientHeight, gapPx = (this._config || {}).min_gap != null ? this._config.min_gap : 12;
+    var list = this._$("occupancyList"), top = list.scrollTop, cam = list.querySelector(".occcam:not(.leaving)");
+    var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    // everything shown at its natural size, as if there were no limits
     app.classList.remove("compact");
     app.classList.add("measuring");
-    var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, need = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), n = 0;
-    Array.prototype.forEach.call(app.children, function (c) {
-      var k = getComputedStyle(c);
-      if (k.display === "none" || k.position === "absolute" || k.position === "fixed") return;
-      need += c.offsetHeight + (parseFloat(k.marginTop) || 0) + (parseFloat(k.marginBottom) || 0);
-      n++;
-    });
-    need += gap * Math.max(0, n - 1) + ((this._config || {}).min_gap != null ? this._config.min_gap : 12);
+    list.style.maxHeight = "";
+    if (cam) { cam.classList.remove("shrunk"); cam.style.removeProperty("--cam-h"); }
+    var measure = function () {
+      var need = pad, n = 0;
+      Array.prototype.forEach.call(app.children, function (c) {
+        var k = getComputedStyle(c);
+        if (k.display === "none" || k.position === "absolute" || k.position === "fixed") return;
+        need += c.offsetHeight + (parseFloat(k.marginTop) || 0) + (parseFloat(k.marginBottom) || 0);
+        n++;
+      });
+      return need + gap * Math.max(0, n - 1) + gapPx;
+    };
+    var over = measure() - H;
+    if (over > 0) {
+      // 1) hide the area button (+ clock in the panel layout)
+      app.classList.add("compact");
+      over = measure() - H;
+      // 2) shrink the live view (cropped) down to a minimum height
+      if (over > 0 && cam) {
+        var natural = cam.offsetHeight, target = Math.max(120, natural - over);
+        if (target < natural) { cam.classList.add("shrunk"); cam.style.setProperty("--cam-h", target + "px"); }
+        over = measure() - H;
+      }
+      // 3) whatever is left: the list scrolls, with "… N more"
+      if (over > 0) list.style.maxHeight = Math.max(56, list.offsetHeight - over) + "px";
+    }
     app.classList.remove("measuring");
-    if (need > app.clientHeight) app.classList.add("compact");
+    list.scrollTop = top;
+    this._occMore();
   }
 
   // layout: panel (480x480 wall panel): clock, date, people chips, idle return
@@ -449,6 +474,17 @@ class FloorConsoleCard extends HTMLElement {
       if (btn.hasAttribute("data-gate")) this._svc("switch", "turn_off", this._config.gate_alert.entity);
       else this._openZoneSheet(btn.getAttribute("data-zone"));
     }.bind(this));
+    $("occupancyList").addEventListener("scroll", this._occMore.bind(this), { passive: true });
+    $("occupancyList").addEventListener("animationend", function (e) {
+      var el = e.target;
+      if (el.classList && el.classList.contains("leaving")) { el.remove(); this._occTidy(); }
+      else if (el.classList) el.classList.remove("enter");
+      this._fitSoon();
+    }.bind(this));
+    $("occMore").addEventListener("click", function () {
+      var l = $("occupancyList");
+      l.scrollBy({ top: Math.max(60, l.clientHeight * 0.8), behavior: "smooth" });
+    });
     $("powerBtn").addEventListener("click", this._openPowerSheet.bind(this));
     $("sleepBtn").addEventListener("click", function () {
       var sl = (this._config || {}).sleep;
@@ -1252,7 +1288,7 @@ class FloorConsoleCard extends HTMLElement {
       mode: "webrtc,webrtc/tcp,mse",
       streams: streams,
       ui: true,
-      style: ":host { display: block; height: 100%; } ha-card { height: 100%; } .player, .player * { height: 100%; } video { width: 100%; height: 100%; object-fit: fill; } .header { display: none; } .pictureinpicture { display: none; } .mode { display: none; } .screenshot { display: none; } .fullscreen { display: none; } .stream { font-size: 15px; width: 150px; font-weight: bold; padding-left: 2px;}" + " .stream { display: none; }"
+      style: ":host { display: block; height: 100%; } ha-card { height: 100%; } .player, .player * { height: 100%; } video { width: 100%; height: 100%; object-fit: var(--cam-fit, fill); } .header { display: none; } .pictureinpicture { display: none; } .mode { display: none; } .screenshot { display: none; } .fullscreen { display: none; } .stream { font-size: 15px; width: 150px; font-weight: bold; padding-left: 2px;}" + " .stream { display: none; }"
     };
   }
 
@@ -1442,16 +1478,83 @@ class FloorConsoleCard extends HTMLElement {
 
   _renderOccupancy() {
     var zones = this._zones().filter(function (z) { return this._occ[z.key] && this._occ[z.key].on; }.bind(this));
-    var key = zones.map(function (z) { return z.key; }).join(",") + (this._gateOpen ? "|gate" : "");
+    var ga = (this._config || {}).gate_alert || {};
+    // priority order: gate alert, its live view, then person zones
+    var want = [];
+    if (this._gateOpen) { want.push("gate"); if (ga.camera) want.push("cam"); }
+    zones.forEach(function (z) { want.push("z:" + z.key); });
+    var key = want.join(",");
     if (key === this._occKey) return;
     this._occKey = key;
-    var tt = this._t.bind(this);
-    var gate = this._gateOpen ? '<button class="occupancybtn gatebtn" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>' : "";
-    this._$("occupancyList").innerHTML = gate + zones.map(function (z) {
-      return '<button class="occupancybtn" data-zone="' + z.key + '"><span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' +
-        '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>';
-    }).join("");
+    var list = this._$("occupancyList"), tt = this._t.bind(this), have = {}, prev = null;
+    Array.prototype.forEach.call(list.children, function (c) { if (!c.classList.contains("leaving")) have[c.getAttribute("data-k")] = c; });
+    want.forEach(function (k) {
+      var el = have[k], fresh = !el;
+      if (fresh) {
+        var box = document.createElement("div");
+        if (k === "gate") box.innerHTML = '<button class="occupancybtn gatebtn occitem" data-k="gate" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>';
+        else if (k === "cam") box.innerHTML = '<div class="occitem occcam" data-k="cam"></div>';
+        else {
+          var zk = k.slice(2), z = this._zones().filter(function (x) { return x.key === zk; })[0];
+          box.innerHTML = '<button class="occupancybtn occitem" data-k="' + k + '" data-zone="' + zk + '"><span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' +
+            '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>';
+        }
+        el = box.firstElementChild;
+        if (this._occInit) el.classList.add("enter");
+      }
+      var after = prev ? prev.nextSibling : list.firstChild;
+      if (el !== after) list.insertBefore(el, after);
+      if (fresh && k === "cam") this._mountOccCam(el, ga.camera);
+      prev = el;
+    }.bind(this));
+    Object.keys(have).forEach(function (k) {
+      if (want.indexOf(k) >= 0) return;
+      var el = have[k];
+      el.classList.remove("enter");
+      el.classList.add("leaving");
+      // animationend normally removes it; this is the fallback
+      setTimeout(function () { if (el.parentNode) { el.remove(); this._occTidy(); this._fitSoon(); } }.bind(this), 450);
+    }.bind(this));
+    this._occInit = true;
+    this._occTidy();
     this._fitSoon();
+  }
+
+  _occTidy() {
+    var list = this._$("occupancyList");
+    this._$("occWrap").hidden = !list.children.length;
+    this._occMore();
+  }
+
+  // Live view under the gate alert: created only while the gate is open
+  // (the panel's decoder streams one camera at a time, not all of them).
+  _mountOccCam(slot, cam) {
+    var self = this;
+    slot.style.aspectRatio = this._ratio(cam);
+    window.loadCardHelpers().then(function (helpers) {
+      if (!slot.isConnected) return;
+      var embed = self._camEmbed(cam);
+      var el = helpers.createCardElement(embed);
+      el.hass = self._hass;
+      slot.appendChild(el);
+      self._spin(slot, el, embed.streams[0].url);
+    });
+  }
+
+  // "… N more" pill + edge fades for the (scrollable) alert list
+  _occMore() {
+    var list = this._$("occupancyList"), more = this._$("occMore");
+    if (!list) return;
+    var bottom = list.scrollTop + list.clientHeight;
+    var hasMore = list.scrollHeight - bottom > 2, hasTop = list.scrollTop > 2;
+    var n = 0;
+    Array.prototype.forEach.call(list.children, function (c) {
+      if (!c.classList.contains("leaving") && c.offsetTop + c.offsetHeight > bottom + 2) n++;
+    });
+    list.style.setProperty("--ft", hasTop ? "16px" : "0px");
+    list.style.setProperty("--fb", hasMore ? "30px" : "0px");
+    more.hidden = !hasMore;
+    more.textContent = n ? this._t("more_items", { n: n }) : "…";
   }
 
   _syncRows() {
@@ -1599,9 +1702,22 @@ class FloorConsoleCard extends HTMLElement {
 '.talkbar{display:flex;gap:4px;padding:4px;margin-bottom:10px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}' +
 '.talk-opt{flex:1;padding:8px 6px;border:none;border-radius:999px;background:transparent;color:var(--fg-dim);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}' +
 '.talk-opt.on{background:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent-strong)}' +
-'.occupancylist{flex:none;display:flex;flex-direction:column;gap:6px}' +
-'.occupancylist:empty{display:none}' +
-'.occupancybtn{width:100%;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;text-align:left;cursor:pointer;}' +
+'.occwrap{flex:none;position:relative}' +
+'.occupancylist{position:relative;display:flex;flex-direction:column;gap:6px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%)}' +
+'.occupancylist::-webkit-scrollbar{display:none}' +
+'.occitem{flex:none;overflow:hidden}' +
+'.occitem.enter{animation:occIn .34s cubic-bezier(.2,.8,.2,1)}' +
+'.occitem.leaving{animation:occOut .28s ease forwards;pointer-events:none}' +
+'@keyframes occIn{from{max-height:0;opacity:0;transform:translateY(-10px);margin-top:-6px;padding-top:0;padding-bottom:0;border-width:0}to{max-height:420px;opacity:1;transform:none;margin-top:0}}' +
+'@keyframes occOut{from{max-height:420px;opacity:1}to{max-height:0;opacity:0;margin-top:-6px;padding-top:0;padding-bottom:0;border-width:0}}' +
+'@media (prefers-reduced-motion:reduce){.occitem.enter,.occitem.leaving{animation-duration:.01s}}' +
+'.app.measuring .occitem{max-height:none!important;margin-top:0!important}' +
+'.app.measuring .occupancybtn{padding-top:10px!important;padding-bottom:10px!important;border-width:1px!important}' +
+'.app.measuring .occitem.leaving{max-height:0!important;margin-top:-6px!important;padding-top:0!important;padding-bottom:0!important;border-width:0!important}' +
+'.occcam{position:relative;border-radius:14px;background:#000;border:1px solid var(--line)}' +
+'.occcam.shrunk{aspect-ratio:auto!important;height:var(--cam-h);--cam-fit:cover}' +
+'.occmore{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);padding:4px 14px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,#000);color:var(--fg);font:inherit;font-size:.74rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.45)}' +
+'.occupancybtn{width:100%;flex:none;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;text-align:left;cursor:pointer;}' +
 '.occupancybtn .plabel{flex:1;min-width:0}' +
 '.occupancybtn .plabel b{display:block;font-size:.88rem;font-weight:600}' +
 '.occupancybtn .plabel span{display:block;font-size:.72rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
@@ -1619,7 +1735,7 @@ class FloorConsoleCard extends HTMLElement {
 '.person.home{color:var(--fg)}' +
 '.person.home .dot{background:var(--on);box-shadow:0 0 5px var(--on)}' +
 '.app.panel{min-height:0;padding-block:var(--top-offset,22px) 8px;gap:6px}' +
-'.app.panel .badges,.app.panel .occupancylist{order:-1}' +
+'.app.panel .badges,.app.panel .occwrap{order:-1}' +
 '.app.panel .panelhead{margin-top:auto;margin-bottom:8px}' +
 '.app.measuring>*{margin-top:0!important}.app.measuring>.radialzone{margin-bottom:0!important;flex:none!important}' +
 '.app.compact .quickactions{margin-top:auto}.app.compact .visitorbar{margin-top:0}' +
@@ -1714,7 +1830,7 @@ class FloorConsoleCard extends HTMLElement {
 '<div class="app' + ((this._config || {}).layout === "panel" ? " panel" : "") + '">' +
 '<div class="panelhead" id="panelHead" hidden><div class="pclock" id="pClock"></div><div class="pdate" id="pDate"></div><div class="people" id="pPeople"></div></div>' +
 '<div class="badges" id="badges"></div>' +
-'<div class="occupancylist" id="occupancyList"></div>' +
+'<div class="occwrap" id="occWrap" hidden><div class="occupancylist" id="occupancyList"></div><button class="occmore" id="occMore" hidden></button></div>' +
 '<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button></div>' +
 '<p class="radialtrigger-hint">' + this._t("hint_pick") + '</p>' +
 '<div class="quickactions">' +
