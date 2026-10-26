@@ -263,6 +263,38 @@ class FloorConsoleCard extends HTMLElement {
   }
   getCardSize() { return 12; }
 
+  // Make room for the alert rows: when the content no longer fits the card
+  // height (keeping min_gap px below the top list), hide the area button —
+  // and in the panel layout the clock/date too. Measured with everything
+  // shown, so the result depends on content only (no flapping).
+  _fitSoon() {
+    if (this._fitQ) return;
+    this._fitQ = requestAnimationFrame(function () { this._fitQ = 0; this._fit(); }.bind(this));
+  }
+  _fit() {
+    var app = this._root && this._root.querySelector(".app");
+    if (!app) return;
+    if (window.ResizeObserver && this._fitEl !== app) {
+      if (this._fitRO) this._fitRO.disconnect();
+      this._fitRO = this._fitRO || new ResizeObserver(this._fitSoon.bind(this));
+      this._fitRO.observe(app);
+      this._fitEl = app;
+    }
+    if (!app.clientHeight) return;
+    app.classList.remove("compact");
+    app.classList.add("measuring");
+    var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, need = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), n = 0;
+    Array.prototype.forEach.call(app.children, function (c) {
+      var k = getComputedStyle(c);
+      if (k.display === "none" || k.position === "absolute" || k.position === "fixed") return;
+      need += c.offsetHeight + (parseFloat(k.marginTop) || 0) + (parseFloat(k.marginBottom) || 0);
+      n++;
+    });
+    need += gap * Math.max(0, n - 1) + ((this._config || {}).min_gap != null ? this._config.min_gap : 12);
+    app.classList.remove("measuring");
+    if (need > app.clientHeight) app.classList.add("compact");
+  }
+
   // layout: panel (480x480 wall panel): clock, date, people chips, idle return
   _renderPanel() {
     var cfg = this._config || {};
@@ -322,6 +354,7 @@ class FloorConsoleCard extends HTMLElement {
     this._hideHeader();
   }
   disconnectedCallback() {
+    if (this._fitRO) { this._fitRO.disconnect(); this._fitEl = null; }
     var hh = this._huiRoot && this._huiRoot.getElementById("fcc-hide-header");
     if (hh) hh.remove();
     this._huiRoot = null;
@@ -349,6 +382,7 @@ class FloorConsoleCard extends HTMLElement {
     if (this._themeName() !== this._config.theme && this._themeShown !== this._themeName()) { this._themeShown = this._themeName(); this._applyTheme(); }
     this._render();
     this._renderPanel();
+    this._fitSoon();
   }
 
   _svc(domain, service, entity_id, data) {
@@ -1417,6 +1451,7 @@ class FloorConsoleCard extends HTMLElement {
       return '<button class="occupancybtn" data-zone="' + z.key + '"><span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' +
         '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>';
     }).join("");
+    this._fitSoon();
   }
 
   _syncRows() {
@@ -1586,6 +1621,9 @@ class FloorConsoleCard extends HTMLElement {
 '.app.panel{min-height:0;padding-block:var(--top-offset,22px) 8px;gap:6px}' +
 '.app.panel .badges,.app.panel .occupancylist{order:-1}' +
 '.app.panel .panelhead{margin-top:auto;margin-bottom:8px}' +
+'.app.measuring>*{margin-top:0!important}.app.measuring>.radialzone{margin-bottom:0!important;flex:none!important}' +
+'.app.compact .quickactions{margin-top:auto}.app.compact .visitorbar{margin-top:0}' +
+'.app.compact .radialzone,.app.compact .radialtrigger-hint,.app.panel.compact .panelhead{display:none}' +
 '.app.panel .radialzone{flex:none;margin-bottom:auto}' +
 '.app.panel .radialtrigger{width:92px;height:92px}' +
 '.app.panel .radialtrigger svg{width:26px;height:26px}' +
