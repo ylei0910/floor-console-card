@@ -1591,7 +1591,7 @@ class FloorConsoleCard extends HTMLElement {
   _occTidy() {
     var list = this._$("occupancyList");
     this._$("occWrap").hidden = !list.children.length;
-    var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving"); }).length;
+    var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving") && !c.classList.contains("occcam"); }).length;
     this._$("pgChip").textContent = this._t("alerts_chip", { n: n });
     this._occMore();
   }
