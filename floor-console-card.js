@@ -1543,7 +1543,11 @@ class FloorConsoleCard extends HTMLElement {
       if (active && !o.active && !o.on) {
         o.expired = false; clearTimeout(o.exp);
         o.exp = setTimeout(function () { o.exp = null; o.expired = true; o.on = false; this._renderOccupancy(); }.bind(this), (z.max_show != null ? z.max_show : (cfg.zone_max_show != null ? cfg.zone_max_show : 120)) * 1000);
-      } else if (!active && o.active && !o.on) { clearTimeout(o.exp); o.exp = null; o.expired = false; }
+      } else if (!active && o.active && !o.on) {
+        // after the cap the sensor must stay off for 4s (same debounce) before a new event can show
+        clearTimeout(o.exp); o.exp = null;
+        if (o.expired) o.rearm = setTimeout(function () { o.rearm = null; o.expired = false; }, 4000);
+      } else if (active && o.rearm) { clearTimeout(o.rearm); o.rearm = null; }
       o.active = active;
       if (active && !o.expired) {
         if (o.timer) { clearTimeout(o.timer); o.timer = null; }
@@ -1981,6 +1985,10 @@ class FloorConsoleCard extends HTMLElement {
 '.gatebtn .plabel b{color:var(--alert)}' +
 '.gatebtn .gclose{flex:none;font-size:.82rem;font-weight:600;color:var(--alert)}' +
 '.occupancybtn .chev{flex:none;width:16px;height:16px;stroke:var(--fg-dim)}' +
+'.app.panel .occupancybtn{gap:8px;padding:6px 12px}' +
+'.app.panel .occupancybtn .plabel b{font-size:.8rem;line-height:1.25}' +
+'.app.panel .occupancybtn .plabel span{font-size:.64rem;line-height:1.25}' +
+'.app.panel.measuring .occupancybtn{padding-top:6px!important;padding-bottom:6px!important}' +
 '.panelhead{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px}' +
 '.pclock{font-family:var(--font-display);font-size:2.6rem;font-weight:600;line-height:1;letter-spacing:.01em;color:var(--fg);font-variant-numeric:tabular-nums}' +
 '.pdate{font-size:.8rem;color:var(--fg-dim)}' +
