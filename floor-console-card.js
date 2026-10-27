@@ -36,6 +36,9 @@ var FCC_I18N = {
     "gate_btn_on": "关闭",
     "gate_confirm": "再点确认开启",
     "zone_cam": "{z}监控",
+    "group_on": "{n}/{m} 已开启",
+    "group_all_on": "全开",
+    "group_all_off": "全关",
     "gate_btn_off": "开启",
     "c_closed": "已关",
     "c_open": "已开",
@@ -153,6 +156,9 @@ var FCC_I18N = {
     "gate_btn_on": "Close",
     "gate_confirm": "Tap again to open",
     "zone_cam": "{z} camera",
+    "group_on": "{n}/{m} on",
+    "group_all_on": "All on",
+    "group_all_off": "All off",
     "gate_btn_off": "Open",
     "c_closed": "Closed",
     "c_open": "Open",
@@ -963,6 +969,14 @@ class FloorConsoleCard extends HTMLElement {
       return '<div class="dev-tile appl-tile' + (ap && this._applianceActive(ap) ? " on" : "") + '" data-appl-row="' + r.appliance + '"><button class="dev-main">' + this._icon(r.icon) +
         '<span class="dl"><b>' + r.label + '</b><span class="ds">' + r.sub + '</span></span></button></div>';
     }
+    if (r.cgroup) {
+      var gids = r.rows.map(function (x) { return x.entity; }), gon = gids.filter(function (id) { return this._isOn(id); }.bind(this)).length;
+      return '<div class="cgroup' + (gon ? " on" : "") + '" data-ids="' + gids.join(",") + '"><div class="cg-head"><div class="ricon">' + this._icon(r.icon) + '</div>' +
+        '<div class="rlabel"><b>' + r.label + '</b><span class="cs">' + this._t("group_on", { n: gon, m: gids.length }) + '</span></div>' +
+        '<button class="gate-btn cg-all">' + this._icon("i-power") + '<span class="gl">' + this._t(gon ? "group_all_off" : "group_all_on") + '</span></button>' +
+        '<svg class="chev cg-chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>' +
+        '<div class="cg-body" hidden>' + r.rows.map(this._rowHTML.bind(this)).join("") + '</div></div>';
+    }
     var on = this._isOn(r.entity);
     if (r.dev) {
       // Fan / air-con pulled out of the list: tap toggles, "⋯" opens more-info.
@@ -997,6 +1011,27 @@ class FloorConsoleCard extends HTMLElement {
     var event = new Event("hass-more-info", { bubbles: true, cancelable: false, composed: true });
     event.detail = { entityId: entity_id };
     this.dispatchEvent(event);
+  }
+
+  // expandable control: tap the header to open / close, the pill switches every member
+  _wireGroups(container) {
+    var self = this;
+    container.querySelectorAll(".cgroup").forEach(function (g) {
+      var ids = g.getAttribute("data-ids").split(",");
+      g.querySelector(".cg-head").addEventListener("click", function (e) {
+        if (e.target.closest(".cg-all")) return;
+        var body = g.querySelector(".cg-body"), open = body.hidden;
+        body.hidden = !open;
+        g.classList.toggle("open", open);
+        // members are wired with the sheet; just bring them into view
+        if (open && body.lastElementChild) body.lastElementChild.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+      g.querySelector(".cg-all").addEventListener("click", function () {
+        var anyOn = ids.some(function (id) { return self._isOn(id); }), byDomain = {};
+        ids.forEach(function (id) { (byDomain[id.split(".")[0]] = byDomain[id.split(".")[0]] || []).push(id); });
+        Object.keys(byDomain).forEach(function (d) { self._svc(d, anyOn ? "turn_off" : "turn_on", byDomain[d]); });
+      });
+    });
   }
 
   _wireRows(container) {
@@ -1120,6 +1155,7 @@ class FloorConsoleCard extends HTMLElement {
     if (camRows.length) html += '<div class="cam-bar">' + camRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     $("sheetBody").innerHTML = html;
     this._wireRows($("sheetBody"));
+    this._wireGroups($("sheetBody"));
     if (a.embed) this._mountEmbed($("sheetEmbed"), a.embed);
     if (a.talk) {
       var self = this;
@@ -1305,14 +1341,37 @@ class FloorConsoleCard extends HTMLElement {
   _openCameraSheet(stream, label, o) {
     o = o || {};
     var area = this._lastArea;
-    var gate = this._isGateCam(stream) && this._sheetGateRow();
     this._openSheet({
       name: this._cameraName(stream) || label, roman: "Camera", icon: "i-cctv", status: this._t("live"),
       embed: this._camEmbed(stream), ratio: this._ratio(stream),
       talk: this._isDoorbell(stream) ? this._doorbell() : null,
-      rows: gate ? [gate] : [],
+      rows: this._cameraControls(stream),
       back: "back" in o ? o.back : (area ? function () { this._openAreaSheet(area); }.bind(this) : true)
     });
+  }
+
+  // The controls shown under a camera's video, from the card option
+  //   camera_controls: { camera.x: [ "light.a", { entity: switch.gate, gate: true }, { entity: light.b, group: "Lights" } ] }
+  // An entry is an entity id or { entity, label?, icon?, gate?, group? }. Entries
+  // sharing a `group` collapse into one expandable control (a lone member stays a
+  // plain row). Without the option, the gate camera and the doorbell get the 大门 row.
+  _cameraControls(stream) {
+    var cfg = this._config || {}, h = this._hass, self = this, ents = cfg.entities || {};
+    if (!cfg.camera_controls) return this._isGateCam(stream) && this._sheetGateRow() ? [this._sheetGateRow()] : [];
+    var rows = [], groups = {};
+    (cfg.camera_controls[stream] || []).forEach(function (e) {
+      if (typeof e === "string") e = { entity: e };
+      var id = e.entity, o = ents[id] || {}, d = id && id.split(".")[0];
+      if (!id || !h.states[id]) return;
+      var label = e.label || o.name || self._cleanName(h.states[id].attributes.friendly_name || id), row;
+      if (e.gate || o.gate) row = { icon: e.icon || o.icon || "i-gate", label: label, gate: true, entity: id, trigger: o.trigger, cam: "", nonav: true, confirm: true };
+      else row = { icon: e.icon || o.icon || self._iconFor(id, d, cfg), label: label, sub: o.sub != null ? o.sub : self._subFor(id, d), entity: id };
+      if (!e.group) { rows.push(row); return; }
+      var g = groups[e.group];
+      if (!g) { g = groups[e.group] = { cgroup: true, label: e.group, icon: e.groupIcon || row.icon, rows: [] }; rows.push(g); }
+      g.rows.push(row);
+    });
+    return rows.map(function (r) { return r.cgroup && r.rows.length === 1 ? r.rows[0] : r; });
   }
 
   // the gate camera and the doorbell are where you decide about the gate
@@ -1735,6 +1794,14 @@ class FloorConsoleCard extends HTMLElement {
     // property from truth. No classList/attribute twiddling of our own on
     // the switch itself, so there's no custom code left that can desync.
     if (!this._hass || !this._$("scrim").classList.contains("open")) return;
+    this._root.querySelectorAll(".sheet-body .cgroup").forEach(function (g) {
+      var ids = g.getAttribute("data-ids").split(","), n = ids.filter(function (id) { return this._isOn(id); }.bind(this)).length;
+      var cs = g.querySelector(".cs"), gl = g.querySelector(".cg-all .gl");
+      var t1 = this._t("group_on", { n: n, m: ids.length }), t2 = this._t(n ? "group_all_off" : "group_all_on");
+      g.classList.toggle("on", n > 0);
+      if (cs.textContent !== t1) cs.textContent = t1;
+      if (gl.textContent !== t2) gl.textContent = t2;
+    }.bind(this));
     var openRows = this._root.querySelectorAll(".sheet-body .row, .sheet-body .master-toggle, .sheet-body .dev-tile, .sheet-body .curtain-tile");
     openRows.forEach(function (row) {
       var curtainIds = row.getAttribute("data-entities");
@@ -1985,6 +2052,15 @@ class FloorConsoleCard extends HTMLElement {
 '.master-toggle.curtain-tile .n{font-family:inherit;font-weight:600}' +
 '.row ha-switch{flex:none}' +
 '.row.gate{cursor:pointer}' +
+'.cgroup{grid-column:1/-1;border-bottom:1px solid var(--line)}' +
+'.cg-head{display:flex;align-items:center;gap:12px;padding:10px 0;cursor:pointer}' +
+'.cg-head .rlabel{flex:1;min-width:0}' +
+'.cg-head .rlabel b{display:block;font-size:.92rem}' +
+'.cg-head .rlabel .cs{display:block;font-size:.72rem;color:var(--fg-dim)}' +
+'.cgroup.on .ricon{color:var(--accent-strong)}' +
+'.cg-chev{flex:none;width:18px;height:18px;stroke:var(--fg-dim);transition:transform .2s}' +
+'.cgroup.open .cg-chev{transform:rotate(180deg)}' +
+'.cg-body{padding:0 0 6px 12px}' +
 '.row.gate[data-nonav]{cursor:default}' +
 '.row.gate.armed .gate-btn{background:color-mix(in srgb,var(--alert) 22%,transparent);border-color:var(--alert);color:var(--alert)}' +
 '.gate-btn{flex:none;display:flex;align-items:center;gap:5px;padding:7px 14px 7px 11px;border-radius:999px;border:1px solid var(--accent);background:color-mix(in srgb,var(--accent) 28%,transparent);color:var(--accent-strong);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}' +
