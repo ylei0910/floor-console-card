@@ -1095,14 +1095,12 @@ class FloorConsoleCard extends HTMLElement {
     $("sheetTitle").textContent = a.name;
     $("sheetSub").textContent = a.roman ? (a.roman + " · " + a.status) : a.status;
     var html = "";
-    if (a.embed) html += '<div class="sheet-embed" id="sheetEmbed"' + (a.ratio ? ' style="aspect-ratio:' + a.ratio + ';background:#000"' : '') + '></div>';
     var allRows = a.rows || [];
-    // on the panel the pop-up gate control (no camera of its own) shares a line with the watch/talk switch; phones have the room for its own row
-    var inlineGate = a.talk && (this._config || {}).layout === "panel" ? allRows.filter(function (r) { return r.gate && r.nonav; }) : [];
-    if (a.talk) {
-      var tb = '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>';
-      html += inlineGate.length ? '<div class="talkrow">' + tb + inlineGate.map(this._rowHTML.bind(this)).join("") + '</div>' : tb;
-    }
+    // the watch / talk switch sits on the bottom edge of the video, so the video
+    // card carries it and the rows below keep the room
+    var tb = a.talk ? '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>' : "";
+    if (a.embed) html += '<div class="embedwrap"><div class="sheet-embed" id="sheetEmbed"' + (a.ratio ? ' style="aspect-ratio:' + a.ratio + ';background:#000"' : '') + '></div>' + tb + '</div>';
+    else html += tb;
     var masterRows = allRows.filter(function (r) { return r.master; });
     var isDev = function (r) { return a.pullout && r.entity && (r.entity.indexOf("fan.") === 0 || r.entity.indexOf("climate.") === 0 || r.entity.indexOf("media_player.") === 0 || r.entity.indexOf("vacuum.") === 0); };
     var tt = this._t.bind(this);
@@ -1110,7 +1108,7 @@ class FloorConsoleCard extends HTMLElement {
       return Object.assign({}, r, { dev: true, devLabel: r.entity.indexOf("vacuum.") === 0 || allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv") }[r.entity.split(".")[0]]) });
     });
     var applRows = allRows.filter(function (r) { return r.appliance != null; });
-    var plainRows = allRows.filter(function (r) { return inlineGate.indexOf(r) < 0 && !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
+    var plainRows = allRows.filter(function (r) { return !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
     var curtainRows = allRows.filter(function (r) { return r.curtain; });
     var camRows = allRows.filter(function (r) { return r.camera; });
     if (masterRows.length || curtainRows.length) html += '<div class="master-bar">' + masterRows.concat(curtainRows).map(this._rowHTML.bind(this)).join("") + '</div>';
@@ -1849,20 +1847,16 @@ class FloorConsoleCard extends HTMLElement {
 '.sheet-close{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--fg-dim);font-size:.9rem;line-height:1;cursor:pointer}' +
 '.sheet-back{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--fg-dim);font-size:1.3rem;line-height:1;cursor:pointer;margin-right:2px}' +
 '.sheet-body{overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;margin-top:8px;padding-bottom:4px}' +
-'.sheet-embed{position:relative;margin-bottom:10px;border-radius:12px;overflow:hidden}' +
+'.embedwrap{position:relative;grid-column:1/-1;margin-bottom:10px}' +
+'.sheet-embed{position:relative;border-radius:12px;overflow:hidden}' +
 '.gate-cam{position:relative}' +
 '.cam-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}' +
 '.cam-spin::before{content:"";position:relative;z-index:1;width:34px;height:34px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent-strong) 22%,transparent);border-top-color:var(--accent-strong);animation:camSpin .9s linear infinite}' +
 '.cam-ph{position:absolute;inset:-24px;background-size:cover;background-position:center;filter:blur(16px) brightness(0.5)}' +
 '@keyframes camSpin{to{transform:rotate(360deg)}}' +
-'.talkrow{display:flex;align-items:center;gap:30px;margin-bottom:10px}' +
-'.talkrow .talkbar{flex:1;min-width:0;margin-bottom:0}' +
-'.talkrow .row.gate{flex:none;width:auto;margin:0;padding:0;border:0;border-radius:0;background:none;box-shadow:none;gap:10px}' +
-'.talkrow .row.gate .ricon,.talkrow .row.gate .gs{display:none}' +
-'.talkrow .row.gate .rlabel b{font-size:.84rem}' +
-'.talkbar{display:flex;gap:4px;padding:4px;margin-bottom:10px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}' +
-'.talk-opt{flex:1;padding:8px 6px;border:none;border-radius:999px;background:transparent;color:var(--fg-dim);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}' +
-'.talk-opt.on{background:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent-strong)}' +
+'.talkbar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:5;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(20,16,12,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}' +
+'.talk-opt{padding:6px 16px;border:none;border-radius:999px;background:transparent;color:rgba(255,255,255,.78);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap}' +
+'.talk-opt.on{background:rgba(255,255,255,.9);color:#2a1f14}' +
 '.occwrap{flex:none;position:relative}' +
 '.occupancylist{position:relative;display:flex;flex-direction:column;gap:6px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft,0px),#000 calc(100% - var(--fb,0px)),transparent 100%)}' +
 '.occupancylist::-webkit-scrollbar{display:none}' +
