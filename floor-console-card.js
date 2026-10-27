@@ -90,6 +90,7 @@ var FCC_I18N = {
     "visitor_tap": "点击查看访客画面",
     "gate_alert_bar": "大门已开启",
     "gate_alert_tap": "点击关闭大门",
+    "gate_cam": "前门",
     "more_items": "… 还有 {n} 项",
     "alerts_chip": "↑ 还有 {n} 项提醒",
     "view": "查看 ›",
@@ -204,6 +205,7 @@ var FCC_I18N = {
     "visitor_tap": "Tap to see the visitor",
     "gate_alert_bar": "Gate is open",
     "gate_alert_tap": "Tap to close the gate",
+    "gate_cam": "Front door",
     "more_items": "… {n} more",
     "alerts_chip": "↑ {n} alerts",
     "view": "View ›",
@@ -472,9 +474,16 @@ class FloorConsoleCard extends HTMLElement {
     }.bind(this));
     $("visitorBtn").addEventListener("click", this._openVisitorSheet.bind(this));
     $("occupancyList").addEventListener("click", function (e) {
+      // gate_alert live view: expands to the full camera sheet, gate stays open
+      var ex = e.target.closest(".camexp");
+      if (ex) {
+        var cam = ex.getAttribute("data-cam");
+        this._openCameraSheet(cam, this._t("gate_cam"));
+        return;
+      }
       var btn = e.target.closest(".occupancybtn");
       if (!btn) return;
-      // gate_alert row: one tap closes the open gate, no confirmation
+      // gate_alert top row: one tap closes the open gate, no confirmation
       if (btn.hasAttribute("data-gate")) this._svc("switch", "turn_off", this._config.gate_alert.entity);
       else this._openZoneSheet(btn.getAttribute("data-zone"));
     }.bind(this));
@@ -1486,9 +1495,9 @@ class FloorConsoleCard extends HTMLElement {
   _renderOccupancy() {
     var zones = this._zones().filter(function (z) { return this._occ[z.key] && this._occ[z.key].on; }.bind(this));
     var ga = (this._config || {}).gate_alert || {};
-    // priority order: gate alert, its live view, then person zones
+    // priority order: gate alert (one card with its live view), then person zones
     var want = [];
-    if (this._gateOpen) { want.push("gate"); if (ga.camera) want.push("cam"); }
+    if (this._gateOpen) want.push("gate");
     zones.forEach(function (z) { want.push("z:" + z.key); });
     var key = want.join(",");
     if (key === this._occKey) return;
@@ -1500,8 +1509,8 @@ class FloorConsoleCard extends HTMLElement {
       if (fresh) {
         fresh0 = true;
         var box = document.createElement("div");
-        if (k === "gate") box.innerHTML = '<button class="occupancybtn gatebtn occitem" data-k="gate" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>';
-        else if (k === "cam") box.innerHTML = '<div class="occitem occcam" data-k="cam"></div>';
+        if (k === "gate") box.innerHTML = '<div class="occitem gatecard" data-k="gate"><button class="occupancybtn gatebtn" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>' +
+          (ga.camera ? '<div class="occcam"><button class="camexp" data-cam="' + ga.camera + '" aria-label="' + tt("live") + '"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button></div>' : "") + '</div>';
         else {
           var zk = k.slice(2), z = this._zones().filter(function (x) { return x.key === zk; })[0];
           box.innerHTML = '<button class="occupancybtn occitem" data-k="' + k + '" data-zone="' + zk + '"><span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' +
@@ -1512,7 +1521,7 @@ class FloorConsoleCard extends HTMLElement {
       }
       var after = prev ? prev.nextSibling : list.firstChild;
       if (el !== after) list.insertBefore(el, after);
-      if (fresh && k === "cam") this._mountOccCam(el, ga.camera);
+      if (fresh && k === "gate" && ga.camera) this._mountOccCam(el.querySelector(".occcam"), ga.camera);
       prev = el;
     }.bind(this));
     Object.keys(have).forEach(function (k) {
@@ -1591,7 +1600,7 @@ class FloorConsoleCard extends HTMLElement {
   _occTidy() {
     var list = this._$("occupancyList");
     this._$("occWrap").hidden = !list.children.length;
-    var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving") && !c.classList.contains("occcam"); }).length;
+    var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving"); }).length;
     this._$("pgChip").textContent = this._t("alerts_chip", { n: n });
     this._occMore();
   }
@@ -1783,15 +1792,19 @@ class FloorConsoleCard extends HTMLElement {
 '@media (prefers-reduced-motion:reduce){.occitem.enter,.occitem.leaving{animation-duration:.01s}}' +
 '.app.measuring .occitem{max-height:none!important;margin-top:0!important}' +
 '.app.measuring .occupancybtn{padding-top:10px!important;padding-bottom:10px!important;border-width:1px!important}' +
+'.app.measuring .gatecard .gatebtn{border-width:0!important}' +
 '.app.measuring .occitem.leaving{max-height:0!important;margin-top:-6px!important;padding-top:0!important;padding-bottom:0!important;border-width:0!important}' +
-'.occcam{position:relative;border-radius:14px;background:#000;border:1px solid var(--line)}' +
+'.gatecard{border-radius:14px;border:1px solid var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
+'.gatecard .gatebtn{border:0;border-radius:0;background:none}' +
+'.occcam{position:relative;background:#000;border-top:1px solid var(--alert)}' +
+'.camexp{position:absolute;inset:0;z-index:3;width:100%;height:100%;border:0;padding:0;background:transparent;cursor:pointer}' +
+'.camexp svg{position:absolute;right:8px;bottom:8px;width:26px;height:26px;padding:5px;box-sizing:border-box;border-radius:8px;background:rgba(0,0,0,.55);stroke:#fff}' +
 '.occcam.shrunk{aspect-ratio:auto!important;height:var(--cam-h);--cam-fit:cover}' +
 '.occmore{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);padding:4px 14px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,#000);color:var(--fg);font:inherit;font-size:.74rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.45)}' +
 '.occupancybtn{width:100%;flex:none;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;text-align:left;cursor:pointer;}' +
 '.occupancybtn .plabel{flex:1;min-width:0}' +
 '.occupancybtn .plabel b{display:block;font-size:.88rem;font-weight:600}' +
 '.occupancybtn .plabel span{display:block;font-size:.72rem;color:var(--fg-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-'.gatebtn{border-color:var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
 '.gatebtn .plabel b{color:var(--alert)}' +
 '.gatebtn .gclose{flex:none;font-size:.82rem;font-weight:600;color:var(--alert)}' +
 '.occupancybtn .chev{flex:none;width:16px;height:16px;stroke:var(--fg-dim)}' +
