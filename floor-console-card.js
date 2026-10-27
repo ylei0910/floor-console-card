@@ -1295,7 +1295,9 @@ class FloorConsoleCard extends HTMLElement {
   }
 
   _openCameraSheet(stream, label, withGate) {
-    var area = this._lastArea;
+    var area = this._lastArea, ga = (this._config || {}).gate_alert || {};
+    // the gate camera and the doorbell are where you decide about the gate, however the sheet was reached
+    if (withGate == null) withGate = !!stream && (stream === ga.camera || this._isDoorbell(stream));
     this._openSheet({
       name: label, roman: "Camera", icon: "i-cctv", status: this._t("live"),
       embed: this._camEmbed(stream), ratio: this._ratio(stream),
