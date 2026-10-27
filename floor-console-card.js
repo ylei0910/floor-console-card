@@ -83,6 +83,7 @@ var FCC_I18N = {
     "armed_home": "在家布防",
     "armed_away": "外出布防",
     "zone_detected": "{z}侦测到人",
+    "zone_vehicle": "{z}侦测到车辆",
     "zone_tap": "点击查看{z}画面",
     "hint_pick": "点击选择房间",
     "area_btn": "区域",
@@ -203,6 +204,7 @@ var FCC_I18N = {
     "armed_home": "Armed home",
     "armed_away": "Armed away",
     "zone_detected": "Person at {z}",
+    "zone_vehicle": "Vehicle at {z}",
     "zone_tap": "Tap to view {z}",
     "hint_pick": "Tap to pick a room",
     "area_btn": "Areas",
@@ -1436,7 +1438,8 @@ class FloorConsoleCard extends HTMLElement {
 
   // Frigate zone occupancy sensors (zones named inside_* / outside_*) — the
   // areas the user actually cares about — each mapped to the camera that
-  // covers it. Person only: car / "all" sensors stay on while cars are parked.
+  // covers it. Person only by default (car / "all" sensors stay on while cars
+  // are parked); a zone may add `vehicle_sensors` that also raise the alert.
   _zones() { return (this._config || {}).zones || []; }
 
   _openZoneSheet(key) {
@@ -1532,7 +1535,9 @@ class FloorConsoleCard extends HTMLElement {
     zones.forEach(function (z) {
       var o = occ[z.key] = occ[z.key] || { on: false, timer: null };
       var person = get(z.sensor || ("binary_sensor." + z.key + "_person_occupancy")) === "on";
-      if (person) {
+      var veh = (z.vehicle_sensors || []).some(function (e) { return get(e) === "on"; });
+      if (person || veh) o.veh = veh && !person;
+      if (person || veh) {
         if (o.timer) { clearTimeout(o.timer); o.timer = null; }
         o.on = true;
       } else if (o.on && !o.timer) {
@@ -1658,7 +1663,7 @@ class FloorConsoleCard extends HTMLElement {
           var b = document.createElement("button");
           b.className = "occupancybtn zrow";
           b.setAttribute("data-zone", z.key);
-          b.innerHTML = '<span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' + chev;
+          b.innerHTML = '<span class="plabel"><b>' + tt(self._occ[z.key].veh ? "zone_vehicle" : "zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' + chev;
           el.insertBefore(b, anchor);
         });
         el.setAttribute("data-zs", zk);
