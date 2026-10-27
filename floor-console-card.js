@@ -1295,13 +1295,14 @@ class FloorConsoleCard extends HTMLElement {
   }
 
   // Every camera pop-up (area camera row, person zone, gate card, doorbell
-  // visitor) comes through here, so the video, the doorbell watch / talk switch
-  // and the 大门 control are decided in one place.
+  // visitor) comes through here, so they all share one layout: the video (with
+  // the watch / talk switch on it for the doorbell, the only camera with a
+  // microphone) and the 大门 control under it.
   // o: roman / status (header text), back (function, true = area list, null = none)
   _openCameraSheet(stream, label, o) {
     o = o || {};
     var area = this._lastArea;
-    var gate = this._isGateCam(stream) && this._sheetGateRow();
+    var gate = this._sheetGateRow();
     this._openSheet({
       name: label, roman: o.roman || "Camera", icon: o.icon || "i-cctv", status: o.status || this._t("live"),
       embed: this._camEmbed(stream), ratio: this._ratio(stream),
@@ -1309,12 +1310,6 @@ class FloorConsoleCard extends HTMLElement {
       rows: gate ? [gate] : [],
       back: "back" in o ? o.back : (area ? function () { this._openAreaSheet(area); }.bind(this) : true)
     });
-  }
-
-  // the gate camera and the doorbell are where you decide about the gate
-  _isGateCam(stream) {
-    var ga = (this._config || {}).gate_alert || {};
-    return !!stream && (stream === ga.camera || this._isDoorbell(stream));
   }
 
   _doorbell() { var v = (this._config || {}).visitor; return v && v.camera; }
