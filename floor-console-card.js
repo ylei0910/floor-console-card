@@ -1540,7 +1540,7 @@ class FloorConsoleCard extends HTMLElement {
       if (active) o.veh = veh && !person;
       // one on-event is shown for at most `max_show` seconds (default 120);
       // it can only show again after the sensor has gone off and back on
-      if (active && !o.active && !o.on) {
+      if (active && !o.active && !o.on && !o.expired) {
         o.expired = false; clearTimeout(o.exp);
         o.exp = setTimeout(function () { o.exp = null; o.expired = true; o.on = false; this._renderOccupancy(); }.bind(this), (z.max_show != null ? z.max_show : (cfg.zone_max_show != null ? cfg.zone_max_show : 120)) * 1000);
       } else if (!active && o.active && !o.on) {
