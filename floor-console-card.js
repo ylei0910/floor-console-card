@@ -988,7 +988,7 @@ class FloorConsoleCard extends HTMLElement {
       // status text); the button toggles `trigger` (defaults to `entity`,
       // e.g. a template switch that pulses the relay). Only the button
       // toggles; tapping the name opens the gate camera.
-      return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"' + (r.confirm ? ' data-confirm="1"' : "") + (r.nonav ? ' data-nonav="1"' : "") + '><div class="ricon">' + this._icon(r.icon) + '</div>' +
+      return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"' + (r.confirm !== false ? ' data-confirm="1"' : "") + (r.nonav ? ' data-nonav="1"' : "") + '><div class="ricon">' + this._icon(r.icon) + '</div>' +
         '<div class="rlabel"><b>' + r.label + '</b><span class="gs">' + this._t(on ? "gate_on" : "gate_off") + '</span></div>' +
         '<button class="gate-btn">' + this._icon("i-power") + '<span class="gl">' + this._t(on ? "gate_btn_on" : "gate_btn_off") + '</span></button></div>' +
         '<div class="gate-cam" hidden></div>';
@@ -1069,7 +1069,7 @@ class FloorConsoleCard extends HTMLElement {
         var gateEntity = row.getAttribute("data-entity");
         row.querySelector(".gate-btn").addEventListener("click", function (e) {
           e.stopPropagation();
-          // opening from a camera pop-up takes a second tap (closing is one tap)
+          // opening takes a second tap everywhere (area row and camera pop-ups); closing is one tap
           if (row.hasAttribute("data-confirm") && !self._isOn(gateEntity)) {
             var gl0 = row.querySelector(".gate-btn .gl");
             if (!row._armed) {
