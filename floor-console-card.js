@@ -1536,8 +1536,16 @@ class FloorConsoleCard extends HTMLElement {
       var o = occ[z.key] = occ[z.key] || { on: false, timer: null };
       var person = get(z.sensor || ("binary_sensor." + z.key + "_person_occupancy")) === "on";
       var veh = (z.vehicle_sensors || []).some(function (e) { return get(e) === "on"; });
-      if (person || veh) o.veh = veh && !person;
-      if (person || veh) {
+      var active = person || veh;
+      if (active) o.veh = veh && !person;
+      // one on-event is shown for at most `max_show` seconds (default 120);
+      // it can only show again after the sensor has gone off and back on
+      if (active && !o.active && !o.on) {
+        o.expired = false; clearTimeout(o.exp);
+        o.exp = setTimeout(function () { o.exp = null; o.expired = true; o.on = false; this._renderOccupancy(); }.bind(this), (z.max_show != null ? z.max_show : (cfg.zone_max_show != null ? cfg.zone_max_show : 120)) * 1000);
+      } else if (!active && o.active && !o.on) { clearTimeout(o.exp); o.exp = null; o.expired = false; }
+      o.active = active;
+      if (active && !o.expired) {
         if (o.timer) { clearTimeout(o.timer); o.timer = null; }
         o.on = true;
       } else if (o.on && !o.timer) {
