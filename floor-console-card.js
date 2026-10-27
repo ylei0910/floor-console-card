@@ -1977,6 +1977,8 @@ class FloorConsoleCard extends HTMLElement {
 '.camexp{position:absolute;inset:0;z-index:3;width:100%;height:100%;border:0;padding:0;background:transparent;cursor:pointer}' +
 '.camexp svg{position:absolute;right:8px;bottom:8px;width:26px;height:26px;padding:5px;box-sizing:border-box;border-radius:8px;background:rgba(0,0,0,.55);stroke:#fff}' +
 '.occcam.shrunk{aspect-ratio:auto!important;height:var(--cam-h);--cam-fit:cover}' +
+'.app.panel .occcam{aspect-ratio:auto!important;height:150px;--cam-fit:cover}' +
+'.app.panel .occcam.shrunk{height:var(--cam-h)}' +
 '.occmore{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);padding:4px 14px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,#000);color:var(--fg);font:inherit;font-size:.74rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.45)}' +
 '.occupancybtn{width:100%;flex:none;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;text-align:left;cursor:pointer;}' +
 '.occupancybtn .plabel{flex:1;min-width:0}' +
