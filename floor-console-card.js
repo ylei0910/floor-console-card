@@ -484,7 +484,7 @@ class FloorConsoleCard extends HTMLElement {
       // gate_alert live view: expands to the full camera sheet, gate stays open
       var ex = e.target.closest(".camexp");
       if (ex) {
-        this._openCameraSheet(ex.getAttribute("data-cam"), ex.getAttribute("data-label"), ex.hasAttribute("data-gate"));
+        this._openCameraSheet(ex.getAttribute("data-cam"), ex.getAttribute("data-label"), { back: null });
         return;
       }
       var btn = e.target.closest(".occupancybtn");
@@ -602,7 +602,7 @@ class FloorConsoleCard extends HTMLElement {
   // no camera of its own and the name doesn't navigate; opening needs a second tap.
   _sheetGateRow() {
     var r = this._gateRow();
-    return r && (this._config || {}).gate_alert ? Object.assign({}, r, { cam: "", nonav: true, confirm: true }) : null;
+    return r ? Object.assign({}, r, { cam: "", nonav: true, confirm: true }) : null;
   }
 
   _gateRow() {
@@ -1294,17 +1294,27 @@ class FloorConsoleCard extends HTMLElement {
     this._lastArea = a;
   }
 
-  _openCameraSheet(stream, label, withGate) {
-    var area = this._lastArea, ga = (this._config || {}).gate_alert || {};
-    // the gate camera and the doorbell are where you decide about the gate, however the sheet was reached
-    if (withGate == null) withGate = !!stream && (stream === ga.camera || this._isDoorbell(stream));
+  // Every camera pop-up (area camera row, person zone, gate card, doorbell
+  // visitor) comes through here, so the video, the doorbell watch / talk switch
+  // and the 大门 control are decided in one place.
+  // o: roman / status (header text), back (function, true = area list, null = none)
+  _openCameraSheet(stream, label, o) {
+    o = o || {};
+    var area = this._lastArea;
+    var gate = this._isGateCam(stream) && this._sheetGateRow();
     this._openSheet({
-      name: label, roman: "Camera", icon: "i-cctv", status: this._t("live"),
+      name: label, roman: o.roman || "Camera", icon: o.icon || "i-cctv", status: o.status || this._t("live"),
       embed: this._camEmbed(stream), ratio: this._ratio(stream),
       talk: this._isDoorbell(stream) ? this._doorbell() : null,
-      rows: withGate && this._sheetGateRow() ? [this._sheetGateRow()] : [],
-      back: area ? function () { this._openAreaSheet(area); }.bind(this) : true
+      rows: gate ? [gate] : [],
+      back: "back" in o ? o.back : (area ? function () { this._openAreaSheet(area); }.bind(this) : true)
     });
+  }
+
+  // the gate camera and the doorbell are where you decide about the gate
+  _isGateCam(stream) {
+    var ga = (this._config || {}).gate_alert || {};
+    return !!stream && (stream === ga.camera || this._isDoorbell(stream));
   }
 
   _doorbell() { var v = (this._config || {}).visitor; return v && v.camera; }
@@ -1342,13 +1352,7 @@ class FloorConsoleCard extends HTMLElement {
   }
 
   _openVisitorSheet() {
-    this._openSheet({
-      name: this._t("visitor_title"), roman: "Visitor", icon: "i-bell",
-      status: this._t("visitor_status"),
-      embed: this._camEmbed(), ratio: this._ratio(),
-      talk: this._doorbell(),
-      rows: this._gateRow() ? [Object.assign({}, this._gateRow(), { confirm: true })] : []
-    });
+    this._openCameraSheet(this._doorbell(), this._t("visitor_title"), { roman: "Visitor", icon: "i-bell", status: this._t("visitor_status"), back: null });
     this._visitorSheetOpen = true;
   }
 
@@ -1360,15 +1364,7 @@ class FloorConsoleCard extends HTMLElement {
   _openZoneSheet(key) {
     var z = this._zones().filter(function (x) { return x.key === key; })[0];
     if (!z) return;
-    // the gate camera and the doorbell are where you decide about the gate
-    var ga = (this._config || {}).gate_alert || {}, gr = (z.camera === ga.camera || this._isDoorbell(z.camera)) && this._sheetGateRow();
-    this._openSheet({
-      name: this._t("zone_title", { z: z.label }), roman: "Person", icon: "i-cctv",
-      status: this._t("zone_status"),
-      embed: this._camEmbed(z.camera), ratio: this._ratio(z.camera),
-      talk: this._isDoorbell(z.camera) ? this._doorbell() : null,
-      rows: gr ? [gr] : []
-    });
+    this._openCameraSheet(z.camera, this._t("zone_title", { z: z.label }), { roman: "Person", status: this._t("zone_status"), back: null });
   }
 
   _openPowerSheet() {
@@ -1594,7 +1590,7 @@ class FloorConsoleCard extends HTMLElement {
       if (g.stream && !slot) {
         slot = document.createElement("div");
         slot.className = "occcam";
-        slot.innerHTML = '<button class="camexp" data-cam="' + g.cam + '" data-label="' + g.label + '"' + (g.gate ? ' data-gate="1"' : "") + ' aria-label="' + tt("live") + '">' + expand + '</button>';
+        slot.innerHTML = '<button class="camexp" data-cam="' + g.cam + '" data-label="' + g.label + '"' + ' aria-label="' + tt("live") + '">' + expand + '</button>';
         el.appendChild(slot);
         this._mountOccCam(slot, g.cam);
       } else if (!g.stream && slot) slot.remove();
