@@ -34,6 +34,7 @@ var FCC_I18N = {
     "gate_on": "已开启",
     "gate_off": "已关闭",
     "gate_btn_on": "关闭",
+    "gate_confirm": "再点确认开启",
     "gate_btn_off": "开启",
     "c_closed": "已关",
     "c_open": "已开",
@@ -149,6 +150,7 @@ var FCC_I18N = {
     "gate_on": "Open",
     "gate_off": "Closed",
     "gate_btn_on": "Close",
+    "gate_confirm": "Tap again to open",
     "gate_btn_off": "Open",
     "c_closed": "Closed",
     "c_open": "Open",
@@ -482,7 +484,7 @@ class FloorConsoleCard extends HTMLElement {
       // gate_alert live view: expands to the full camera sheet, gate stays open
       var ex = e.target.closest(".camexp");
       if (ex) {
-        this._openCameraSheet(ex.getAttribute("data-cam"), ex.getAttribute("data-label"));
+        this._openCameraSheet(ex.getAttribute("data-cam"), ex.getAttribute("data-label"), ex.hasAttribute("data-gate"));
         return;
       }
       var btn = e.target.closest(".occupancybtn");
@@ -594,6 +596,13 @@ class FloorConsoleCard extends HTMLElement {
     var cfg = this._config || {}, h = this._hass;
     var fl = cfg.floor && h && h.floors ? h.floors[cfg.floor] : null;
     return cfg.floor_attr || (fl ? ["", "first_floor", "second_floor", "third_floor", "fourth_floor"][fl.level] : "") || "second_floor";
+  }
+
+  // The gate control as shown inside a camera pop-up (前门 / 大门外 / visitor):
+  // no camera of its own and the name doesn't navigate; opening needs a second tap.
+  _sheetGateRow() {
+    var r = this._gateRow();
+    return r && (this._config || {}).gate_alert ? Object.assign({}, r, { cam: "", nonav: true, confirm: true }) : null;
   }
 
   _gateRow() {
@@ -964,7 +973,7 @@ class FloorConsoleCard extends HTMLElement {
       // status text); the button toggles `trigger` (defaults to `entity`,
       // e.g. a template switch that pulses the relay). Only the button
       // toggles; tapping the name opens the gate camera.
-      return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"><div class="ricon">' + this._icon(r.icon) + '</div>' +
+      return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"' + (r.confirm ? ' data-confirm="1"' : "") + (r.nonav ? ' data-nonav="1"' : "") + '><div class="ricon">' + this._icon(r.icon) + '</div>' +
         '<div class="rlabel"><b>' + r.label + '</b><span class="gs">' + this._t(on ? "gate_on" : "gate_off") + '</span></div>' +
         '<button class="gate-btn">' + this._icon("i-power") + '<span class="gl">' + this._t(on ? "gate_btn_on" : "gate_btn_off") + '</span></button></div>' +
         '<div class="gate-cam" hidden></div>';
@@ -1029,10 +1038,25 @@ class FloorConsoleCard extends HTMLElement {
         var gateEntity = row.getAttribute("data-entity");
         row.querySelector(".gate-btn").addEventListener("click", function (e) {
           e.stopPropagation();
+          // opening from a camera pop-up takes a second tap (closing is one tap)
+          if (row.hasAttribute("data-confirm") && !self._isOn(gateEntity)) {
+            var gl0 = row.querySelector(".gate-btn .gl");
+            if (!row._armed) {
+              row._armed = true;
+              gl0.textContent = self._t("gate_confirm");
+              row.classList.add("armed");
+              clearTimeout(row._armT);
+              row._armT = setTimeout(function () { row._armed = false; row.classList.remove("armed"); gl0.textContent = self._t(self._isOn(gateEntity) ? "gate_btn_on" : "gate_btn_off"); }, 4000);
+              return;
+            }
+            row._armed = false; row.classList.remove("armed"); clearTimeout(row._armT);
+            gl0.textContent = self._t("gate_btn_off");
+          }
           self._toggle(trigger);
           self._showGateCam(row.getAttribute("data-gatecam"));
         });
         row.addEventListener("click", function () {
+          if (row.hasAttribute("data-nonav")) return;
           // name area: live camera view (the visitor sheet already embeds it)
           var gc = row.getAttribute("data-gatecam");
           if (!gc) self._moreInfo(gateEntity);
@@ -1072,8 +1096,13 @@ class FloorConsoleCard extends HTMLElement {
     $("sheetSub").textContent = a.roman ? (a.roman + " · " + a.status) : a.status;
     var html = "";
     if (a.embed) html += '<div class="sheet-embed" id="sheetEmbed"' + (a.ratio ? ' style="aspect-ratio:' + a.ratio + ';background:#000"' : '') + '></div>';
-    if (a.talk) html += '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>';
     var allRows = a.rows || [];
+    // the pop-up gate control (no camera of its own) shares a line with the watch/talk switch
+    var inlineGate = a.talk ? allRows.filter(function (r) { return r.gate && r.nonav; }) : [];
+    if (a.talk) {
+      var tb = '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>';
+      html += inlineGate.length ? '<div class="talkrow">' + tb + inlineGate.map(this._rowHTML.bind(this)).join("") + '</div>' : tb;
+    }
     var masterRows = allRows.filter(function (r) { return r.master; });
     var isDev = function (r) { return a.pullout && r.entity && (r.entity.indexOf("fan.") === 0 || r.entity.indexOf("climate.") === 0 || r.entity.indexOf("media_player.") === 0 || r.entity.indexOf("vacuum.") === 0); };
     var tt = this._t.bind(this);
@@ -1081,7 +1110,7 @@ class FloorConsoleCard extends HTMLElement {
       return Object.assign({}, r, { dev: true, devLabel: r.entity.indexOf("vacuum.") === 0 || allRows.filter(function (x) { return x.entity && x.entity.split(".")[0] === r.entity.split(".")[0]; }).length > 1 ? r.label : ({ fan: tt("fan"), climate: tt("dev_ac"), media_player: tt("tv") }[r.entity.split(".")[0]]) });
     });
     var applRows = allRows.filter(function (r) { return r.appliance != null; });
-    var plainRows = allRows.filter(function (r) { return !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
+    var plainRows = allRows.filter(function (r) { return inlineGate.indexOf(r) < 0 && !r.master && !r.camera && !r.curtain && !isDev(r) && r.appliance == null; });
     var curtainRows = allRows.filter(function (r) { return r.curtain; });
     var camRows = allRows.filter(function (r) { return r.camera; });
     if (masterRows.length || curtainRows.length) html += '<div class="master-bar">' + masterRows.concat(curtainRows).map(this._rowHTML.bind(this)).join("") + '</div>';
@@ -1267,13 +1296,13 @@ class FloorConsoleCard extends HTMLElement {
     this._lastArea = a;
   }
 
-  _openCameraSheet(stream, label) {
+  _openCameraSheet(stream, label, withGate) {
     var area = this._lastArea;
     this._openSheet({
       name: label, roman: "Camera", icon: "i-cctv", status: this._t("live"),
       embed: this._camEmbed(stream), ratio: this._ratio(stream),
       talk: this._isDoorbell(stream) ? this._doorbell() : null,
-      rows: [],
+      rows: withGate && this._sheetGateRow() ? [this._sheetGateRow()] : [],
       back: area ? function () { this._openAreaSheet(area); }.bind(this) : true
     });
   }
@@ -1318,7 +1347,7 @@ class FloorConsoleCard extends HTMLElement {
       status: this._t("visitor_status"),
       embed: this._camEmbed(), ratio: this._ratio(),
       talk: this._doorbell(),
-      rows: this._gateRow() ? [this._gateRow()] : []
+      rows: this._gateRow() ? [Object.assign({}, this._gateRow(), { confirm: true })] : []
     });
     this._visitorSheetOpen = true;
   }
@@ -1331,12 +1360,14 @@ class FloorConsoleCard extends HTMLElement {
   _openZoneSheet(key) {
     var z = this._zones().filter(function (x) { return x.key === key; })[0];
     if (!z) return;
+    // the gate camera and the doorbell are where you decide about the gate
+    var ga = (this._config || {}).gate_alert || {}, gr = (z.camera === ga.camera || this._isDoorbell(z.camera)) && this._sheetGateRow();
     this._openSheet({
       name: this._t("zone_title", { z: z.label }), roman: "Person", icon: "i-cctv",
       status: this._t("zone_status"),
       embed: this._camEmbed(z.camera), ratio: this._ratio(z.camera),
       talk: this._isDoorbell(z.camera) ? this._doorbell() : null,
-      rows: []
+      rows: gr ? [gr] : []
     });
   }
 
@@ -1563,7 +1594,7 @@ class FloorConsoleCard extends HTMLElement {
       if (g.stream && !slot) {
         slot = document.createElement("div");
         slot.className = "occcam";
-        slot.innerHTML = '<button class="camexp" data-cam="' + g.cam + '" data-label="' + g.label + '" aria-label="' + tt("live") + '">' + expand + '</button>';
+        slot.innerHTML = '<button class="camexp" data-cam="' + g.cam + '" data-label="' + g.label + '"' + (g.gate ? ' data-gate="1"' : "") + ' aria-label="' + tt("live") + '">' + expand + '</button>';
         el.appendChild(slot);
         this._mountOccCam(slot, g.cam);
       } else if (!g.stream && slot) slot.remove();
@@ -1716,7 +1747,7 @@ class FloorConsoleCard extends HTMLElement {
         var gs = row.querySelector(".gs"), gl = gbtn.querySelector(".gl");
         var gst = this._t(on ? "gate_on" : "gate_off"), gbl = this._t(on ? "gate_btn_on" : "gate_btn_off");
         if (gs && gs.textContent !== gst) gs.textContent = gst;
-        if (gl && gl.textContent !== gbl) gl.textContent = gbl;
+        if (gl && !row._armed && gl.textContent !== gbl) gl.textContent = gbl;
         return;
       }
       var ds = row.querySelector(".ds");
@@ -1824,6 +1855,11 @@ class FloorConsoleCard extends HTMLElement {
 '.cam-spin::before{content:"";position:relative;z-index:1;width:34px;height:34px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent-strong) 22%,transparent);border-top-color:var(--accent-strong);animation:camSpin .9s linear infinite}' +
 '.cam-ph{position:absolute;inset:-24px;background-size:cover;background-position:center;filter:blur(16px) brightness(0.5)}' +
 '@keyframes camSpin{to{transform:rotate(360deg)}}' +
+'.talkrow{display:flex;align-items:center;gap:10px;margin-bottom:10px}' +
+'.talkrow .talkbar{flex:1;min-width:0;margin-bottom:0}' +
+'.talkrow .row.gate{flex:none;width:auto;margin:0;padding:0;border:0;background:none;box-shadow:none;gap:8px}' +
+'.talkrow .row.gate .ricon,.talkrow .row.gate .gs{display:none}' +
+'.talkrow .row.gate .rlabel b{font-size:.84rem}' +
 '.talkbar{display:flex;gap:4px;padding:4px;margin-bottom:10px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}' +
 '.talk-opt{flex:1;padding:8px 6px;border:none;border-radius:999px;background:transparent;color:var(--fg-dim);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer}' +
 '.talk-opt.on{background:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent-strong)}' +
@@ -1893,7 +1929,7 @@ class FloorConsoleCard extends HTMLElement {
 '.app.panel .sheet{max-height:100%;height:100%;border-radius:0}' +
 '.app.panel .sheet-grab{display:none}' +
 '.app.panel .sheet-head p{display:none}' +
-'.app.panel .sheet-body{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-content:start}' +
+'.app.panel .sheet-body{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;align-content:start;grid-auto-rows:max-content}' +
 '.app.panel .sheet-body>*{grid-column:1/-1}' +
 '.app.panel .sheet-body>.row:not(.gate){grid-column:auto;min-width:0}' +
 '.app.panel .sheet-body>.row .rlabel{flex-direction:column;align-items:flex-start;gap:0}' +
@@ -1937,6 +1973,8 @@ class FloorConsoleCard extends HTMLElement {
 '.master-toggle.curtain-tile .n{font-family:inherit;font-weight:600}' +
 '.row ha-switch{flex:none}' +
 '.row.gate{cursor:pointer}' +
+'.row.gate[data-nonav]{cursor:default}' +
+'.row.gate.armed .gate-btn{background:color-mix(in srgb,var(--alert) 22%,transparent);border-color:var(--alert);color:var(--alert)}' +
 '.gate-btn{flex:none;display:flex;align-items:center;gap:5px;padding:7px 14px 7px 11px;border-radius:999px;border:1px solid var(--accent);background:color-mix(in srgb,var(--accent) 28%,transparent);color:var(--accent-strong);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}' +
 '.gate-btn svg{width:15px;height:15px;stroke:currentColor;flex:none}' +
 '.gate-btn:active{opacity:.8;transform:scale(0.96)}' +
