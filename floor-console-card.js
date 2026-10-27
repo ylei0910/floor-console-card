@@ -606,13 +606,6 @@ class FloorConsoleCard extends HTMLElement {
     return cfg.floor_attr || (fl ? ["", "first_floor", "second_floor", "third_floor", "fourth_floor"][fl.level] : "") || "second_floor";
   }
 
-  // The gate control as shown inside a camera pop-up (前门 / 大门外 / visitor):
-  // no camera of its own and the name doesn't navigate; opening needs a second tap.
-  _sheetGateRow() {
-    var r = this._gateRow();
-    return r ? Object.assign({}, r, { cam: "", nonav: true, confirm: true }) : null;
-  }
-
   _gateRow() {
     var found = null;
     this._AREAS.some(function (a) { return a.rows.some(function (r) { if (r.gate) { found = r; return true; } }); });
@@ -988,7 +981,7 @@ class FloorConsoleCard extends HTMLElement {
       // status text); the button toggles `trigger` (defaults to `entity`,
       // e.g. a template switch that pulses the relay). Only the button
       // toggles; tapping the name opens the gate camera.
-      return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"' + (r.confirm !== false ? ' data-confirm="1"' : "") + (r.nonav ? ' data-nonav="1"' : "") + '><div class="ricon">' + this._icon(r.icon) + '</div>' +
+      return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"' + (r.nonav ? ' data-nonav="1"' : "") + '><div class="ricon">' + this._icon(r.icon) + '</div>' +
         '<div class="rlabel"><b>' + r.label + '</b><span class="gs">' + this._t(on ? "gate_on" : "gate_off") + '</span></div>' +
         '<button class="gate-btn">' + this._icon("i-power") + '<span class="gl">' + this._t(on ? "gate_btn_on" : "gate_btn_off") + '</span></button></div>' +
         '<div class="gate-cam" hidden></div>';
@@ -1013,6 +1006,29 @@ class FloorConsoleCard extends HTMLElement {
   }
 
   _groupStatus(n) { return n ? this._t("group_n_on", { n: n }) : this._t("group_none_on"); }
+
+  // THE gate button logic, shared by every place that has one (area list, camera
+  // pop-ups, whatever comes next): opening takes a second tap (the button turns
+  // red and reads "tap again" for 4 s), closing is one tap.
+  _gateToggle(row, entity, trigger) {
+    var self = this, gl = row.querySelector(".gate-btn .gl");
+    if (!this._isOn(entity)) {
+      if (!row._armed) {
+        row._armed = true;
+        gl.textContent = this._t("gate_confirm");
+        row.classList.add("armed");
+        clearTimeout(row._armT);
+        row._armT = setTimeout(function () { row._armed = false; row.classList.remove("armed"); gl.textContent = self._t(self._isOn(entity) ? "gate_btn_on" : "gate_btn_off"); }, 4000);
+        return;
+      }
+      row._armed = false;
+      row.classList.remove("armed");
+      clearTimeout(row._armT);
+      gl.textContent = this._t("gate_btn_off");
+    }
+    this._toggle(trigger);
+    this._showGateCam(row.getAttribute("data-gatecam"));
+  }
 
   // expandable control: tap the header to open / close
   _wireGroups(container) {
@@ -1069,22 +1085,7 @@ class FloorConsoleCard extends HTMLElement {
         var gateEntity = row.getAttribute("data-entity");
         row.querySelector(".gate-btn").addEventListener("click", function (e) {
           e.stopPropagation();
-          // opening takes a second tap everywhere (area row and camera pop-ups); closing is one tap
-          if (row.hasAttribute("data-confirm") && !self._isOn(gateEntity)) {
-            var gl0 = row.querySelector(".gate-btn .gl");
-            if (!row._armed) {
-              row._armed = true;
-              gl0.textContent = self._t("gate_confirm");
-              row.classList.add("armed");
-              clearTimeout(row._armT);
-              row._armT = setTimeout(function () { row._armed = false; row.classList.remove("armed"); gl0.textContent = self._t(self._isOn(gateEntity) ? "gate_btn_on" : "gate_btn_off"); }, 4000);
-              return;
-            }
-            row._armed = false; row.classList.remove("armed"); clearTimeout(row._armT);
-            gl0.textContent = self._t("gate_btn_off");
-          }
-          self._toggle(trigger);
-          self._showGateCam(row.getAttribute("data-gatecam"));
+          self._gateToggle(row, gateEntity, trigger);
         });
         row.addEventListener("click", function () {
           if (row.hasAttribute("data-nonav")) return;
@@ -1126,7 +1127,9 @@ class FloorConsoleCard extends HTMLElement {
     $("sheetTitle").textContent = a.name;
     $("sheetSub").textContent = a.roman ? (a.roman + " · " + a.status) : a.status;
     var html = "";
-    var allRows = a.rows || [];
+    // a gate row next to a video doesn't need a camera of its own, and its name doesn't navigate
+    var withVideo = function (r) { return r.gate && a.embed ? Object.assign({}, r, { cam: "", nonav: true }) : r.cgroup ? Object.assign({}, r, { rows: r.rows.map(withVideo) }) : r; };
+    var allRows = (a.rows || []).map(withVideo);
     // the watch / talk switch sits on the bottom edge of the video, so the video
     // card carries it and the rows below keep the room
     var tb = a.talk ? '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>' : "";
@@ -1353,7 +1356,7 @@ class FloorConsoleCard extends HTMLElement {
   // the doorbell get the 大门 row.
   _cameraControls(stream) {
     var cfg = this._config || {}, h = this._hass, self = this, ents = cfg.entities || {};
-    if (!cfg.camera_controls) return this._isGateCam(stream) && this._sheetGateRow() ? [this._sheetGateRow()] : [];
+    if (!cfg.camera_controls) return this._isGateCam(stream) && this._gateRow() ? [this._gateRow()] : [];
     var spec = cfg.camera_controls[stream] || [];
     if (!Array.isArray(spec)) spec = spec.controls || [];
     var meta = Array.isArray(cfg.camera_controls[stream]) ? {} : (cfg.camera_controls[stream] || {});
@@ -1363,7 +1366,7 @@ class FloorConsoleCard extends HTMLElement {
       var id = e.entity, o = ents[id] || {}, d = id && id.split(".")[0];
       if (!id || !h.states[id]) return;
       var label = e.label || o.name || self._cleanName(h.states[id].attributes.friendly_name || id);
-      if (e.gate || o.gate) rows.push({ icon: e.icon || o.icon || "i-gate", label: label, gate: true, entity: id, trigger: o.trigger, cam: "", nonav: true, confirm: true });
+      if (e.gate || o.gate) rows.push({ icon: e.icon || o.icon || "i-gate", label: label, gate: true, entity: id, trigger: o.trigger });
       else rows.push({ icon: e.icon || o.icon || self._iconFor(id, d, cfg), label: label, sub: o.sub != null ? o.sub : self._subFor(id, d), entity: id });
     });
     if (rows.length < 2) return rows;
