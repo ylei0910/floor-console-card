@@ -1843,10 +1843,8 @@ class FloorConsoleCard extends HTMLElement {
 '.occcard{border-radius:14px;border:1px solid var(--line);background:var(--surface)}' +
 '.occcard .occupancybtn{border:0;border-radius:0;background:none}' +
 '.occcard .occupancybtn+.occupancybtn{border-top:1px solid var(--line)}' +
-'.gatecard{border-color:var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
-'.gatecard .occupancybtn+.occupancybtn{border-top-color:color-mix(in srgb,var(--alert) 35%,transparent)}' +
+'.gatecard .gatebtn{background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
 '.occcam{position:relative;background:#000;border-top:1px solid var(--line)}' +
-'.gatecard .occcam{border-top-color:var(--alert)}' +
 '.camexp{position:absolute;inset:0;z-index:3;width:100%;height:100%;border:0;padding:0;background:transparent;cursor:pointer}' +
 '.camexp svg{position:absolute;right:8px;bottom:8px;width:26px;height:26px;padding:5px;box-sizing:border-box;border-radius:8px;background:rgba(0,0,0,.55);stroke:#fff}' +
 '.occcam.shrunk{aspect-ratio:auto!important;height:var(--cam-h);--cam-fit:cover}' +
