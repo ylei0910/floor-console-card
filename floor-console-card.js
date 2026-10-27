@@ -288,13 +288,13 @@ class FloorConsoleCard extends HTMLElement {
     }
     if (!app.clientHeight) return;
     var H = app.clientHeight, gapPx = (this._config || {}).min_gap != null ? this._config.min_gap : 12;
-    var list = this._$("occupancyList"), top = list.scrollTop, cam = list.querySelector(".occcam:not(.leaving)");
+    var list = this._$("occupancyList"), top = list.scrollTop, cams = Array.prototype.slice.call(list.querySelectorAll(".occcard:not(.leaving) .occcam"));
     var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // everything shown at its natural size, as if there were no limits
     app.classList.remove("compact", "page-home");
     app.classList.add("measuring");
     list.style.maxHeight = "";
-    if (cam) { cam.classList.remove("shrunk"); cam.style.removeProperty("--cam-h"); }
+    cams.forEach(function (cam) { cam.classList.remove("shrunk"); cam.style.removeProperty("--cam-h"); });
     var measure = function () {
       var need = pad, n = 0;
       Array.prototype.forEach.call(app.children, function (c) {
@@ -311,9 +311,14 @@ class FloorConsoleCard extends HTMLElement {
       app.classList.add("compact");
       over = measure() - H;
       // 2) shrink the live view (cropped) down to a minimum height
-      if (over > 0 && cam) {
-        var natural = cam.offsetHeight, target = Math.max(120, natural - over);
-        if (target < natural) { cam.classList.add("shrunk"); cam.style.setProperty("--cam-h", target + "px"); }
+      if (over > 0 && cams.length) {
+        // lowest-priority live view first
+        var left = over;
+        cams.slice().reverse().forEach(function (cam) {
+          if (left <= 0) return;
+          var natural = cam.offsetHeight, target = Math.max(120, natural - left);
+          if (target < natural) { cam.classList.add("shrunk"); cam.style.setProperty("--cam-h", target + "px"); left -= natural - target; }
+        });
         over = measure() - H;
       }
       // 3) whatever is left: the list scrolls, with "… N more"
@@ -477,8 +482,7 @@ class FloorConsoleCard extends HTMLElement {
       // gate_alert live view: expands to the full camera sheet, gate stays open
       var ex = e.target.closest(".camexp");
       if (ex) {
-        var cam = ex.getAttribute("data-cam");
-        this._openCameraSheet(cam, this._t("gate_cam"));
+        this._openCameraSheet(ex.getAttribute("data-cam"), ex.getAttribute("data-label"));
         return;
       }
       var btn = e.target.closest(".occupancybtn");
@@ -1492,38 +1496,80 @@ class FloorConsoleCard extends HTMLElement {
     if (this._embedEl) this._embedEl.hass = h;
   }
 
+  // Alert cards, in priority order: the gate alert, then one card per camera
+  // with a person detected. A card is its rows (gate, person zones sharing
+  // that camera) stacked over one live view. Only the first `max_streams`
+  // (default 2) cards stream; the panel's decoder can't take more at once.
+  _occGroups() {
+    var cfg = this._config || {}, ga = cfg.gate_alert || {}, self = this, groups = [], byCam = {};
+    var zones = this._zones().filter(function (z) { return self._occ[z.key] && self._occ[z.key].on; });
+    if (this._gateOpen) {
+      var g = { key: "gate", gate: true, cam: ga.camera || "", label: this._t("gate_cam"), zones: [] };
+      groups.push(g);
+      if (g.cam) byCam[g.cam] = g;
+    }
+    zones.forEach(function (z) {
+      var g = z.camera && byCam[z.camera];
+      if (!g) {
+        g = { key: z.camera ? "c:" + z.camera : "z:" + z.key, gate: false, cam: z.camera || "", label: z.label, zones: [] };
+        groups.push(g);
+        if (z.camera) byCam[z.camera] = g;
+      }
+      g.zones.push(z);
+    });
+    var cap = cfg.max_streams != null ? cfg.max_streams : 2;
+    groups.forEach(function (g, n) { g.stream = !!g.cam && n < cap; });
+    return groups;
+  }
+
   _renderOccupancy() {
-    var zones = this._zones().filter(function (z) { return this._occ[z.key] && this._occ[z.key].on; }.bind(this));
-    var ga = (this._config || {}).gate_alert || {};
-    // priority order: gate alert (one card with its live view), then person zones
-    var want = [];
-    if (this._gateOpen) want.push("gate");
-    zones.forEach(function (z) { want.push("z:" + z.key); });
-    var key = want.join(",");
+    var groups = this._occGroups(), self = this, tt = this._t.bind(this);
+    var key = JSON.stringify(groups.map(function (g) { return [g.key, g.stream, g.zones.map(function (z) { return z.key; })]; }));
     if (key === this._occKey) return;
     this._occKey = key;
-    var list = this._$("occupancyList"), tt = this._t.bind(this), have = {}, prev = null, fresh0 = false;
+    var list = this._$("occupancyList"), have = {}, prev = null, fresh0 = false;
+    var chev = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+    var expand = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
     Array.prototype.forEach.call(list.children, function (c) { if (!c.classList.contains("leaving")) have[c.getAttribute("data-k")] = c; });
-    want.forEach(function (k) {
-      var el = have[k], fresh = !el;
-      if (fresh) {
+    groups.forEach(function (g) {
+      var el = have[g.key];
+      if (!el) {
         fresh0 = true;
-        var box = document.createElement("div");
-        if (k === "gate") box.innerHTML = '<div class="occitem gatecard" data-k="gate"><button class="occupancybtn gatebtn" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>' +
-          (ga.camera ? '<div class="occcam"><button class="camexp" data-cam="' + ga.camera + '" aria-label="' + tt("live") + '"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button></div>' : "") + '</div>';
-        else {
-          var zk = k.slice(2), z = this._zones().filter(function (x) { return x.key === zk; })[0];
-          box.innerHTML = '<button class="occupancybtn occitem" data-k="' + k + '" data-zone="' + zk + '"><span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' +
-            '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>';
-        }
-        el = box.firstElementChild;
+        el = document.createElement("div");
+        el.className = "occitem occcard" + (g.gate ? " gatecard" : "");
+        el.setAttribute("data-k", g.key);
+        if (g.gate) el.innerHTML = '<button class="occupancybtn gatebtn" data-gate="1"><span class="plabel"><b>' + tt("gate_alert_bar") + '</b><span>' + tt("gate_alert_tap") + '</span></span><span class="gclose">' + tt("gate_btn_on") + '</span></button>';
         if (this._occInit) el.classList.add("enter");
       }
       var after = prev ? prev.nextSibling : list.firstChild;
       if (el !== after) list.insertBefore(el, after);
-      if (fresh && k === "gate" && ga.camera) this._mountOccCam(el.querySelector(".occcam"), ga.camera);
+      // person rows (rebuilt only when the set changes; the stream is untouched)
+      var zk = g.zones.map(function (z) { return z.key; }).join(",");
+      if (el.getAttribute("data-zs") !== zk) {
+        if (el.hasAttribute("data-zs") && zk.split(",").length > el.getAttribute("data-zs").split(",").length) fresh0 = true;
+        Array.prototype.slice.call(el.querySelectorAll(".zrow")).forEach(function (r) { r.remove(); });
+        var anchor = el.querySelector(".occcam");
+        g.zones.forEach(function (z) {
+          var b = document.createElement("button");
+          b.className = "occupancybtn zrow";
+          b.setAttribute("data-zone", z.key);
+          b.innerHTML = '<span class="plabel"><b>' + tt("zone_detected", { z: z.label }) + '</b><span>' + tt("zone_tap", { z: z.label }) + '</span></span>' + chev;
+          el.insertBefore(b, anchor);
+        });
+        el.setAttribute("data-zs", zk);
+      }
+      // live view
+      var slot = el.querySelector(".occcam");
+      if (g.stream && !slot) {
+        slot = document.createElement("div");
+        slot.className = "occcam";
+        slot.innerHTML = '<button class="camexp" data-cam="' + g.cam + '" data-label="' + g.label + '" aria-label="' + tt("live") + '">' + expand + '</button>';
+        el.appendChild(slot);
+        this._mountOccCam(slot, g.cam);
+      } else if (!g.stream && slot) slot.remove();
       prev = el;
     }.bind(this));
+    var want = groups.map(function (g) { return g.key; });
     Object.keys(have).forEach(function (k) {
       if (want.indexOf(k) >= 0) return;
       var el = have[k];
@@ -1600,7 +1646,7 @@ class FloorConsoleCard extends HTMLElement {
   _occTidy() {
     var list = this._$("occupancyList");
     this._$("occWrap").hidden = !list.children.length;
-    var n = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("leaving"); }).length;
+    var n = list.querySelectorAll(".occcard:not(.leaving) .occupancybtn").length;
     this._$("pgChip").textContent = this._t("alerts_chip", { n: n });
     this._occMore();
   }
@@ -1787,16 +1833,20 @@ class FloorConsoleCard extends HTMLElement {
 '.occitem{flex:none;overflow:hidden}' +
 '.occitem.enter{animation:occIn .34s cubic-bezier(.2,.8,.2,1)}' +
 '.occitem.leaving{animation:occOut .28s ease forwards;pointer-events:none}' +
-'@keyframes occIn{from{max-height:0;opacity:0;transform:translateY(-10px);margin-top:-6px;padding-top:0;padding-bottom:0;border-width:0}to{max-height:420px;opacity:1;transform:none;margin-top:0}}' +
-'@keyframes occOut{from{max-height:420px;opacity:1}to{max-height:0;opacity:0;margin-top:-6px;padding-top:0;padding-bottom:0;border-width:0}}' +
+'@keyframes occIn{from{max-height:0;opacity:0;transform:translateY(-10px);margin-top:-6px;padding-top:0;padding-bottom:0;border-width:0}to{max-height:700px;opacity:1;transform:none;margin-top:0}}' +
+'@keyframes occOut{from{max-height:700px;opacity:1}to{max-height:0;opacity:0;margin-top:-6px;padding-top:0;padding-bottom:0;border-width:0}}' +
 '@media (prefers-reduced-motion:reduce){.occitem.enter,.occitem.leaving{animation-duration:.01s}}' +
 '.app.measuring .occitem{max-height:none!important;margin-top:0!important}' +
 '.app.measuring .occupancybtn{padding-top:10px!important;padding-bottom:10px!important;border-width:1px!important}' +
-'.app.measuring .gatecard .gatebtn{border-width:0!important}' +
+'.app.measuring .occcard .occupancybtn{border-left-width:0!important;border-right-width:0!important;border-bottom-width:0!important}' +
 '.app.measuring .occitem.leaving{max-height:0!important;margin-top:-6px!important;padding-top:0!important;padding-bottom:0!important;border-width:0!important}' +
-'.gatecard{border-radius:14px;border:1px solid var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
-'.gatecard .gatebtn{border:0;border-radius:0;background:none}' +
-'.occcam{position:relative;background:#000;border-top:1px solid var(--alert)}' +
+'.occcard{border-radius:14px;border:1px solid var(--line);background:var(--surface)}' +
+'.occcard .occupancybtn{border:0;border-radius:0;background:none}' +
+'.occcard .occupancybtn+.occupancybtn{border-top:1px solid var(--line)}' +
+'.gatecard{border-color:var(--alert);background:color-mix(in srgb,var(--alert) 12%,var(--surface))}' +
+'.gatecard .occupancybtn+.occupancybtn{border-top-color:color-mix(in srgb,var(--alert) 35%,transparent)}' +
+'.occcam{position:relative;background:#000;border-top:1px solid var(--line)}' +
+'.gatecard .occcam{border-top-color:var(--alert)}' +
 '.camexp{position:absolute;inset:0;z-index:3;width:100%;height:100%;border:0;padding:0;background:transparent;cursor:pointer}' +
 '.camexp svg{position:absolute;right:8px;bottom:8px;width:26px;height:26px;padding:5px;box-sizing:border-box;border-radius:8px;background:rgba(0,0,0,.55);stroke:#fff}' +
 '.occcam.shrunk{aspect-ratio:auto!important;height:var(--cam-h);--cam-fit:cover}' +
