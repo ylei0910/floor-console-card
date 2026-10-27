@@ -1097,8 +1097,8 @@ class FloorConsoleCard extends HTMLElement {
     var html = "";
     if (a.embed) html += '<div class="sheet-embed" id="sheetEmbed"' + (a.ratio ? ' style="aspect-ratio:' + a.ratio + ';background:#000"' : '') + '></div>';
     var allRows = a.rows || [];
-    // the pop-up gate control (no camera of its own) shares a line with the watch/talk switch
-    var inlineGate = a.talk ? allRows.filter(function (r) { return r.gate && r.nonav; }) : [];
+    // on the panel the pop-up gate control (no camera of its own) shares a line with the watch/talk switch; phones have the room for its own row
+    var inlineGate = a.talk && (this._config || {}).layout === "panel" ? allRows.filter(function (r) { return r.gate && r.nonav; }) : [];
     if (a.talk) {
       var tb = '<div class="talkbar"><button class="talk-opt on" data-mode="watch">' + this._t("watch") + '</button><button class="talk-opt" data-mode="talk">' + this._t("talk") + '</button></div>';
       html += inlineGate.length ? '<div class="talkrow">' + tb + inlineGate.map(this._rowHTML.bind(this)).join("") + '</div>' : tb;
@@ -1855,9 +1855,9 @@ class FloorConsoleCard extends HTMLElement {
 '.cam-spin::before{content:"";position:relative;z-index:1;width:34px;height:34px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent-strong) 22%,transparent);border-top-color:var(--accent-strong);animation:camSpin .9s linear infinite}' +
 '.cam-ph{position:absolute;inset:-24px;background-size:cover;background-position:center;filter:blur(16px) brightness(0.5)}' +
 '@keyframes camSpin{to{transform:rotate(360deg)}}' +
-'.talkrow{display:flex;align-items:center;gap:10px;margin-bottom:10px}' +
+'.talkrow{display:flex;align-items:center;gap:16px;margin-bottom:10px}' +
 '.talkrow .talkbar{flex:1;min-width:0;margin-bottom:0}' +
-'.talkrow .row.gate{flex:none;width:auto;margin:0;padding:0;border:0;background:none;box-shadow:none;gap:8px}' +
+'.talkrow .row.gate{flex:none;width:auto;margin:0;padding:0 0 0 16px;border:0;border-left:1px solid var(--line);border-radius:0;background:none;box-shadow:none;gap:10px}' +
 '.talkrow .row.gate .ricon,.talkrow .row.gate .gs{display:none}' +
 '.talkrow .row.gate .rlabel b{font-size:.84rem}' +
 '.talkbar{display:flex;gap:4px;padding:4px;margin-bottom:10px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}' +
