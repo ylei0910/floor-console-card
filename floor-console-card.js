@@ -985,8 +985,7 @@ class FloorConsoleCard extends HTMLElement {
       // toggles; tapping the name opens the gate camera.
       return '<div class="row gate' + (on ? " on" : "") + '" data-entity="' + r.entity + '" data-trigger="' + (r.trigger || r.entity) + '" data-gatecam="' + (r.cam || "") + '"' + (r.nonav ? ' data-nonav="1"' : "") + '><div class="ricon">' + this._icon(r.icon) + '</div>' +
         '<div class="rlabel"><b>' + r.label + '</b><span class="gs">' + this._t(on ? "gate_on" : "gate_off") + '</span></div>' +
-        '<button class="gate-btn">' + this._icon("i-power") + '<span class="gl">' + this._t(on ? "gate_btn_on" : "gate_btn_off") + '</span></button></div>' +
-        '<div class="gate-cam" hidden></div>';
+        '<button class="gate-btn">' + this._icon("i-power") + '<span class="gl">' + this._t(on ? "gate_btn_on" : "gate_btn_off") + '</span></button></div>';
     }
     return '<div class="row' + (on ? " on" : "") + '" data-entity="' + r.entity + '"><div class="ricon">' + this._icon(r.icon) + '</div>' +
       '<div class="rlabel"><b>' + r.label + '</b><span>' + r.sub + '</span></div>' +
@@ -1028,8 +1027,11 @@ class FloorConsoleCard extends HTMLElement {
       clearTimeout(row._armT);
       gl.textContent = this._t("gate_btn_off");
     }
+    var opening = !this._isOn(entity);
     this._toggle(trigger);
-    this._showGateCam(row.getAttribute("data-gatecam"));
+    // opened from a list (no video of its own): the home screen's alert card
+    // shows the gate camera now, so just get out of the way
+    if (opening && !row.hasAttribute("data-nonav")) this._closeSheet();
   }
 
   // expandable control: tap the header to open / close
@@ -1119,7 +1121,6 @@ class FloorConsoleCard extends HTMLElement {
     var sheetEl = this._$("sheet");
     if (this._hAnim) { this._hAnim.cancel(); this._hAnim = null; sheetEl.classList.remove("morphing"); }
     var h0 = wasOpen ? sheetEl.getBoundingClientRect().height : 0;
-    clearTimeout(this._gateCamTimer);
     this._currentArea = null;
     this._applOpen = null;
     var $ = this._$;
@@ -1193,35 +1194,7 @@ class FloorConsoleCard extends HTMLElement {
     }
   }
 
-  _showGateCam(cam) {
-    // Live view of the gate (front-door camera) right under the 车房大门 row,
-    // so the user can watch it move. Shown on tap and whenever the gate's
-    // status changes; hides itself again after 30s without activity.
-    var slot = this._root.querySelector(".gate-cam");
-    if (!slot || !cam) return;
-    var self = this;
-    if (slot.hidden || !slot.firstElementChild) {
-      slot.hidden = false;
-      slot.style.aspectRatio = this._ratio(cam);
-      slot.style.background = "#000";
-      window.loadCardHelpers().then(function (helpers) {
-        if (!slot.isConnected) return;
-        var el = helpers.createCardElement(self._camEmbed(cam));
-        el.hass = self._hass;
-        slot.innerHTML = "";
-        slot.appendChild(el);
-        self._spin(slot, el, self._camEmbed(cam).streams[0].url);
-      });
-    }
-    clearTimeout(this._gateCamTimer);
-    this._gateCamTimer = setTimeout(function () {
-      slot.hidden = true;
-      slot.innerHTML = "";
-    }, 30000);
-  }
-
   _closeSheet() {
-    clearTimeout(this._gateCamTimer);
     this._$("scrim").classList.remove("open");
     this._visitorSheetOpen = false;
     this._currentArea = null;
@@ -1571,12 +1544,6 @@ class FloorConsoleCard extends HTMLElement {
     var ga = cfg.gate_alert;
     this._gateOpen = !!(ga && ga.entity && get(ga.entity) === "on");
     this._renderOccupancy();
-
-    // gate status changed (by anyone) while a sheet with the gate row is open
-    var gateRow = this._gateRow();
-    var gateState = gateRow ? get(gateRow.entity) : undefined;
-    if (this._prevGate !== undefined && gateState !== this._prevGate && $("scrim").classList.contains("open")) this._showGateCam(gateRow.cam);
-    this._prevGate = gateState;
 
     // power button (opens the switch sheet; lit while any switch is on)
     var pw = cfg.power || [];
@@ -1948,7 +1915,6 @@ class FloorConsoleCard extends HTMLElement {
 '.sheet-body{overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;margin-top:8px;padding-bottom:4px}' +
 '.embedwrap{position:relative;grid-column:1/-1;margin-bottom:10px}' +
 '.sheet-embed{position:relative;border-radius:12px;overflow:hidden}' +
-'.gate-cam{position:relative}' +
 '.cam-spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}' +
 '.cam-spin::before{content:"";position:relative;z-index:1;width:34px;height:34px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent-strong) 22%,transparent);border-top-color:var(--accent-strong);animation:camSpin .9s linear infinite}' +
 '.cam-ph{position:absolute;inset:-24px;background-size:cover;background-position:center;filter:blur(16px) brightness(0.5)}' +
@@ -2090,7 +2056,6 @@ class FloorConsoleCard extends HTMLElement {
 '.master-toggle.on{background:color-mix(in srgb,var(--accent) 30%,transparent);border-color:var(--accent)}' +
 '.master-toggle.on .n{color:var(--fg)}' +
 '.master-toggle:active{opacity:.85}' +
-'.gate-cam{margin:4px 0 8px;border-radius:12px;overflow:hidden}' +
 '.cam-bar{display:flex;flex-wrap:wrap;gap:14px;margin-top:4px;padding:10px 2px 0;border-top:1px solid var(--line)}' +
 '.cam-btn{display:flex;flex-direction:column;align-items:center;gap:6px;width:72px;border:none;background:none;color:inherit;font:inherit;cursor:pointer;padding:0}' +
 '.cam-btn .circle{width:48px;height:48px;border-radius:50%;background:color-mix(in srgb,var(--info) 16%,transparent);border:1px solid color-mix(in srgb,var(--info) 45%,transparent);display:flex;align-items:center;justify-content:center}' +
