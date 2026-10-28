@@ -1157,6 +1157,7 @@ class FloorConsoleCard extends HTMLElement {
     this._wireRows($("sheetBody"));
     this._wireGroups($("sheetBody"));
     if (a.embed) this._mountEmbed($("sheetEmbed"), a.embed);
+    this._setVideoSheet(!!(a.embed && a.embed.streams));
     if (a.talk) {
       var self = this;
       var opts = $("sheetBody").querySelectorAll(".talk-opt");
@@ -1194,7 +1195,14 @@ class FloorConsoleCard extends HTMLElement {
     }
   }
 
+  _setVideoSheet(v) {
+    if (!!this._videoSheet === v) return;
+    this._videoSheet = v;
+    this._renderOccupancy();
+  }
+
   _closeSheet() {
+    this._setVideoSheet(false);
     this._$("scrim").classList.remove("open");
     this._visitorSheetOpen = false;
     this._currentArea = null;
@@ -1607,7 +1615,8 @@ class FloorConsoleCard extends HTMLElement {
       g.zones.push(z);
     });
     var cap = cfg.max_streams != null ? cfg.max_streams : 2;
-    groups.forEach(function (g, n) { g.stream = !!g.cam && n < cap; });
+    // a camera pop-up covers the home screen: its alert streams would only burn resources behind it
+    groups.forEach(function (g, n) { g.stream = !!g.cam && n < cap && !self._videoSheet; });
     return groups;
   }
 
