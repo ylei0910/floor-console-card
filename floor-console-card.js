@@ -87,6 +87,7 @@ var FCC_I18N = {
     "zone_tap": "点击查看{z}画面",
     "hint_pick": "点击选择房间",
     "area_btn": "区域",
+    "all_areas": "全部区域",
     "power": "电源",
     "sleep": "睡眠模式",
     "tap_toggle": "点击切换",
@@ -208,6 +209,7 @@ var FCC_I18N = {
     "zone_tap": "Tap to view {z}",
     "hint_pick": "Tap to pick a room",
     "area_btn": "Areas",
+    "all_areas": "All areas",
     "power": "Power",
     "sleep": "Sleep mode",
     "tap_toggle": "Tap to toggle",
@@ -255,10 +257,251 @@ var FCC_I18N = {
   }
 };
 
+// ---- floor plan ----------------------------------------------------------
+// Draws the card's `floorplan` config as an oblique 3D plan: floors stay
+// square and walls stand up, leaning by `lean` per `wall_height`, so a wall's
+// top is drawn shifted up-left by its height. Rooms are on the upper storey
+// (raised by `storey`) unless `ground: true`. Coordinates are plan units at
+// any scale; `view` is the visible box [x, y, w, h]. Returns the SVG markup
+// plus where each area's icon goes (as fractions of the view box).
+function fccFloorplan(fp) {
+  var H = fp.wall_height || 26, DX = fp.lean != null ? fp.lean : -8, T = fp.wall || 6, E = fp.storey || 0;
+  var shift = function (h) { return [DX * h / H, -h]; };
+  var LIFT = shift(E);
+  var mv = function (q, o) { return [q[0] + o[0], q[1] + o[1]]; };
+  var key2 = function (a, b) { return [String(a), String(b)].sort().join("|"); };
+  var pts = function (a) { return a.map(function (p) { return Math.round(p[0] * 10) / 10 + "," + Math.round(p[1] * 10) / 10; }).join(" "); };
+  var P = function (cls, a, extra) { return '<polygon class="' + cls + '" points="' + pts(a) + '"' + (extra || "") + "/>"; };
+  var Ln = function (cls, a, b) { return '<line class="' + cls + '" x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '"/>'; };
+  var esc = function (s) { return String(s).replace(/"/g, "&quot;"); };
+  var setOf = function (list) { var s = {}; (list || []).forEach(function (l) { s[key2(l[0], l[1])] = 1; }); return s; };
+  var OPEN = setOf(fp.open), INTERNAL = setOf(fp.partitions);
+  var view = [-DX, H], faces = function (n) { return n[0] * view[0] + n[1] * view[1] > 0; };
+  var rooms = fp.rooms || [];
+
+  // walls of one level, painted lowest layer first, back to front within a layer
+  function walls() {
+    var items = [], seen = {};
+    function add(a, b, h, t, layer) {
+      h = h || H; t = t || T;
+      var k0 = key2(a, b);
+      if (h === H && INTERNAL[k0]) { h = fp.partition_height || 7; t = 3; layer = h; }
+      if (layer == null) layer = h;
+      var k = k0 + "|" + h;
+      if (seen[k] || (h === H && OPEN[k0])) return;
+      seen[k] = 1;
+      items.push({ a: a, b: b, h: h, t: t, layer: layer, y: Math.max(a[1], b[1]), hz: Math.abs(a[0] - b[0]) > Math.abs(a[1] - b[1]) ? 1 : 0 });
+    }
+    function block(it) {
+      var a = it.a, b = it.b, e = it.t / 2, o = shift(it.h), U = function (q) { return mv(q, o); };
+      var len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], n = [-d[1], d[0]];
+      // footprint, extended by half a thickness at both ends so corners close
+      var A = [a[0] - d[0] * e, a[1] - d[1] * e], B = [b[0] + d[0] * e, b[1] + d[1] * e];
+      var off = function (q, k) { return [q[0] + n[0] * e * k, q[1] + n[1] * e * k]; };
+      var q = [off(A, -1), off(B, -1), off(B, 1), off(A, 1)], f = "";
+      var face = function (p, r, nn) { f += P(Math.abs(nn[1]) >= Math.abs(nn[0]) ? "f-wf" : "f-ws", [p, r, U(r), U(p)]); };
+      if (faces(n)) face(q[3], q[2], n); else face(q[0], q[1], [-n[0], -n[1]]);
+      // thin railings butt into walls: no end faces
+      if (it.t > 3) { if (faces(d)) face(q[1], q[2], d); else face(q[0], q[3], [-d[0], -d[1]]); }
+      return { f: f, c: P("f-wt", q.map(U)) };
+    }
+    return {
+      add: add, items: items,
+      line: function (p, h, t, layer, closed) { for (var i = 0; i < p.length - (closed ? 0 : 1); i++) add(p[i], p[(i + 1) % p.length], h, t, layer); },
+      draw: function () {
+        var layers = [];
+        items.forEach(function (it) { if (layers.indexOf(it.layer) < 0) layers.push(it.layer); });
+        return layers.sort(function (a, b) { return a - b; }).map(function (L) {
+          var f = "", c = "";
+          items.filter(function (it) { return it.layer === L; }).sort(function (p, q) { return p.y - q.y || p.hz - q.hz; }).forEach(function (it) {
+            var r = it.svg ? { f: it.svg(), c: "" } : block(it);
+            f += r.f; c += r.c;
+          });
+          return f + c;
+        }).join("");
+      }
+    };
+  }
+
+  // a polyline wall with mitred joints, so its corners meet as one wall
+  function mitred(p, h, t) {
+    var e = t / 2, o = shift(h), U = function (q) { return mv(q, o); }, out = "";
+    var dirs = p.slice(1).map(function (q, i) { var a = p[i], l = Math.hypot(q[0] - a[0], q[1] - a[1]); return [(q[0] - a[0]) / l, (q[1] - a[1]) / l]; });
+    var nrm = function (d) { return [-d[1], d[0]]; };
+    var off = p.map(function (q, i) {
+      var n = [dirs[i - 1], dirs[i]].filter(Boolean).map(nrm);
+      var m = [n.reduce(function (s, v) { return s + v[0]; }, 0) / n.length, n.reduce(function (s, v) { return s + v[1]; }, 0) / n.length];
+      var ml = Math.hypot(m[0], m[1]); m = [m[0] / ml, m[1] / ml];
+      var k = e / (m[0] * n[0][0] + m[1] * n[0][1]);
+      return { l: [q[0] + m[0] * k, q[1] + m[1] * k], r: [q[0] - m[0] * k, q[1] - m[1] * k] };
+    });
+    dirs.forEach(function (d, i) {
+      var n = nrm(d), s = faces(n) ? "l" : "r", a = off[i][s], b = off[i + 1][s];
+      out += P(Math.abs(n[1]) >= Math.abs(n[0]) ? "f-wf" : "f-ws", [a, b, U(b), U(a)]);
+    });
+    return out + P("f-wt", off.map(function (x) { return x.l; }).concat(off.slice().reverse().map(function (x) { return x.r; })).map(U));
+  }
+
+  function box(p, r, h, top) {
+    var U = function (q) { return mv(q, shift(h)); };
+    var tl = [p[0] - r, p[1] - r], tr = [p[0] + r, p[1] - r], br = [p[0] + r, p[1] + r], bl = [p[0] - r, p[1] + r];
+    return P("f-wf", [bl, br, U(br), U(bl)]) + P("f-ws", [tr, br, U(br), U(tr)]) + P(top || "f-wt", [tl, tr, br, bl].map(U));
+  }
+
+  function stairs(r) {
+    var s = r.stairs, y0 = s.y[0], y1 = s.y[1], out = "";
+    (s.runs || []).forEach(function (run) {
+      var a = run[0], b = run[1], n = run[2], s0 = run[3], s1 = run[4], k = Math.max(n, 1), w = (b - a) / k;
+      for (var i = 0; i < k; i++) {
+        var x = a + i * w, sh = s0 + (s1 - s0) * (k > 1 ? i / (k - 1) : 0);
+        out += P("f-step", [[x, y0], [x + w, y0], [x + w, y1], [x, y1]], ' style="fill-opacity:' + sh.toFixed(2) + '"');
+        if (n) out += Ln("f-nose", [x, y0], [x, y1]);
+      }
+    });
+    return out;
+  }
+
+  function roomSVG(r) {
+    var s = '<g class="f-rm" data-room="' + esc(r.id) + '">' + P("f-fl f-" + (r.floor || "room"), r.points);
+    (r.patches || []).forEach(function (pa) { s += P("f-" + (pa.fill || "grass"), pa.points); });
+    if (r.stairs) s += stairs(r);
+    return s + P("f-glow", r.points, ' fill="url(#fpGlow)"') + "</g>";
+  }
+  var hit = function (r) { return P("f-hit", r.points, ' data-area="' + esc(r.area) + '"'); };
+
+  // folding gate: closed = panels in a line across the opening; open = folded
+  // into a V at each post, sticking out on the `outside` side
+  function gate(g, open) {
+    var a = g.a, b = g.b, h = g.height || 14, n = g.panels || 4, out = "";
+    var panel = function (p0, p1) {
+      out += P("f-gp", [p0, p1, mv(p1, shift(h)), mv(p0, shift(h))]);
+      for (var i = 1; i < 5; i++) { var o = shift(h * i / 5); out += Ln("f-gs", mv(p0, o), mv(p1, o)); }
+    };
+    out += box(a, 4.5, (g.wall || h) + 3);
+    var len = Math.hypot(b[0] - a[0], b[1] - a[1]) / n;
+    if (!open) {
+      for (var i = 0; i < n; i++) panel([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n]);
+    } else {
+      var sx = g.outside === "right" ? 1 : -1;
+      [[a, 1], [b, -1]].forEach(function (hd) {
+        var hinge = hd[0], dir = hd[1] * (b[1] >= a[1] ? 1 : -1);
+        var fold = [hinge[0] + sx * len * 0.97, hinge[1] + dir * len * 0.24], back = [hinge[0], hinge[1] + dir * len * 0.48];
+        if (hd[1] > 0) { panel(hinge, fold); panel(fold, back); } else { panel(fold, back); panel(hinge, fold); }
+      });
+    }
+    return out + box(b, 4.5, (g.wall || h) + 3);
+  }
+
+  // ground level
+  var gr = "";
+  (fp.verge || []).forEach(function (p) { gr += P("f-grass", p); });
+  (fp.paving || []).forEach(function (p) { gr += P("f-pave", p); });
+  if (fp.site) gr += P("f-plinth", fp.site.map(function (q) { return [q[0], q[1] + 12]; })) + P("f-ground", fp.site);
+  rooms.filter(function (r) { return r.ground; }).forEach(function (r) { gr += roomSVG(r); });
+  if (fp.shadow && E) {
+    var so = fp.shadow_offset || [16, 12];
+    gr += '<g' + (fp.site ? ' clip-path="url(#fpClip)"' : "") + ">" + P("f-cast", fp.shadow.map(function (q) { return mv(q, so); }), ' filter="url(#fpSoft)"') + "</g>";
+  }
+  var gw = walls();
+  (fp.ground_walls || []).forEach(function (w) {
+    if (w.mitre) gr += mitred(w.points, w.height || 8, w.thickness || 5);
+    else gw.line(w.points, w.height || 8, w.thickness || 5, w.layer, w.closed);
+  });
+  gr += gw.draw();
+  if (fp.gate) gr += '<g class="f-gate f-gate-closed">' + gate(fp.gate, false) + '</g><g class="f-gate f-gate-open">' + gate(fp.gate, true) + "</g>";
+  rooms.filter(function (r) { return r.ground; }).forEach(function (r) { gr += hit(r); });
+
+  // the storey below the upper floor: faces of the house block, posts
+  var bk = "";
+  if (E) {
+    var hs = fp.house || [];
+    hs.forEach(function (a, i) {
+      var b = hs[(i + 1) % hs.length], n = [b[1] - a[1], a[0] - b[0]];
+      if (!faces(n)) return;
+      bk += P(Math.abs(n[1]) >= Math.abs(n[0]) ? "f-wf" : "f-ws", [a, b, mv(b, LIFT), mv(a, LIFT)]);
+    });
+    (fp.posts || []).forEach(function (p) { bk += P("f-ws", [p, [p[0] + 5, p[1]], mv([p[0] + 5, p[1]], LIFT), mv(p, LIFT)]); });
+  }
+
+  // upper level
+  var up = "";
+  if (E) {
+    (fp.slab || []).forEach(function (p) { up += P("f-wf", p); });
+    (fp.slab_edges || []).forEach(function (s) { var d = shift(-(s.drop || 7)); up += P("f-wf", [s.points[0], s.points[1], mv(s.points[1], d), mv(s.points[0], d)]); });
+  }
+  rooms.filter(function (r) { return !r.ground; }).forEach(function (r) { up += roomSVG(r); });
+  (fp.dashed || []).forEach(function (p) { up += P("f-dash", p); });
+  (fp.dividers || []).forEach(function (l) { up += Ln("f-div", [l[0], l[1]], [l[2], l[3]]); });
+  var uw = walls();
+  rooms.filter(function (r) { return !r.ground && r.walls; }).forEach(function (r) { uw.line(r.points, H, T, null, true); });
+  (fp.walls || []).forEach(function (w) { uw.line(w.points, w.height, w.thickness, w.layer, w.closed); });
+  (fp.furniture || []).forEach(function (f) {
+    var x0 = f.points[0], y0 = f.points[1], x1 = f.points[2], y1 = f.points[3];
+    uw.items.push({ layer: H, y: y1, hz: 0, svg: function () {
+      var o = shift(f.height || H / 2), U = function (q) { return mv(q, o); }, s = "";
+      s += P("f-cupf", [[x0, y1], [x1, y1], U([x1, y1]), U([x0, y1])]) + P("f-cups", [[x1, y0], [x1, y1], U([x1, y1]), U([x1, y0])]);
+      s += P("f-cupt", [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(U));
+      for (var y = y0 + (f.seam || 22); y < y1; y += f.seam || 22) s += Ln("f-cupl", U([x0, y]), U([x1, y]));
+      return s;
+    } });
+  });
+  up += uw.draw();
+  rooms.filter(function (r) { return !r.ground; }).forEach(function (r) { up += hit(r); });
+
+  // icon spot per area: the centre of all its rooms (only the visible part of a
+  // room counts), nudged to the nearest spot clear of the walls; `icons` pins it
+  var inside = function (q, p) {
+    var c = false;
+    for (var i = 0, j = p.length - 1; i < p.length; j = i++) {
+      if ((p[i][1] > q[1]) !== (p[j][1] > q[1]) && q[0] < (p[j][0] - p[i][0]) * (q[1] - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0]) c = !c;
+    }
+    return c;
+  };
+  var segDist = function (q, a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
+  };
+  function centre(polys) {
+    var A = 0, X = 0, Y = 0;
+    polys.forEach(function (p) { p.forEach(function (a, i) { var b = p[(i + 1) % p.length], c = a[0] * b[1] - b[0] * a[1]; A += c; X += (a[0] + b[0]) * c; Y += (a[1] + b[1]) * c; }); });
+    var c = [X / (3 * A), Y / (3 * A)], CL = 18;
+    var clear = function (q) { return polys.some(function (p) { return inside(q, p) && p.every(function (v, i) { return segDist(q, v, p[(i + 1) % p.length]) >= CL; }); }); };
+    if (clear(c)) return c;
+    var best = c, bd = 1e9;
+    polys.forEach(function (p) {
+      var xs = p.map(function (v) { return v[0]; }), ys = p.map(function (v) { return v[1]; });
+      for (var x = Math.min.apply(0, xs); x <= Math.max.apply(0, xs); x += 3)
+        for (var y = Math.min.apply(0, ys); y <= Math.max.apply(0, ys); y += 3) {
+          var d = Math.hypot(x - c[0], y - c[1]);
+          if (d < bd && clear([x, y])) { bd = d; best = [x, y]; }
+        }
+    });
+    return best;
+  }
+  var vb = fp.view || [0, 0, 1000, 600], pins = [], areas = [];
+  rooms.forEach(function (r) { if (r.area && areas.indexOf(r.area) < 0) areas.push(r.area); });
+  areas.forEach(function (id) {
+    var rs = rooms.filter(function (r) { return r.area === id; });
+    var c = (fp.icons || {})[id] || centre(rs.map(function (r) { return r.visible || r.points; }));
+    if (!rs[0].ground) c = mv(c, LIFT);
+    pins.push({ area: id, x: (c[0] - vb[0]) / vb[2], y: (c[1] - vb[1]) / vb[3] });
+  });
+
+  var svg = '<svg class="fp-svg" viewBox="' + vb.join(" ") + '" preserveAspectRatio="xMidYMid meet">' +
+    '<defs><radialGradient id="fpGlow" cx="50%" cy="55%" r="65%"><stop offset="0" style="stop-color:rgb(var(--fp-glow));stop-opacity:.6"/><stop offset=".6" style="stop-color:rgb(var(--fp-glow));stop-opacity:.22"/><stop offset="1" style="stop-color:rgb(var(--fp-glow));stop-opacity:0"/></radialGradient>' +
+    '<filter id="fpSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>' +
+    (fp.site ? '<clipPath id="fpClip">' + P("", fp.site) + "</clipPath>" : "") + "</defs>" +
+    "<g>" + gr + "</g><g>" + bk + '</g><g transform="translate(' + LIFT[0] + " " + LIFT[1] + ')">' + up + "</g></svg>";
+  return { svg: svg, view: vb, pins: pins };
+}
+
+var FCC_FP_LIGHT = { "fp-ground": "#e9e5de", "fp-plinth": "#d3ccc1", "fp-wall": "#ffffff", "fp-wall-face": "#ece8e2", "fp-wall-side": "#d4cdc3", "fp-room": "#efe8db", "fp-wet": "#dde0e2", "fp-wood": "#e6d3b8", "fp-terrace": "#e2d6c8", "fp-court": "#e6dfd0", "fp-grass": "#c3d3a4", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900" };
+var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e" };
+
 class FloorConsoleCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
-    if (this._root) this._applyTheme();
+    if (this._root) { this._applyTheme(); this._fpMount(); }
   }
 
   // `theme: sun` follows sun.sun (or `sun_entity`): `theme_day` (default
@@ -272,7 +515,7 @@ class FloorConsoleCard extends HTMLElement {
   }
   _theme() {
     var t = FCC_THEMES[this._themeName()] || FCC_THEMES.walnut;
-    var vars = Object.assign({}, t.vars, this._config.theme_vars || {});
+    var vars = Object.assign({}, t.vars, t.vars["color-scheme"] === "dark" ? FCC_FP_DARK : FCC_FP_LIGHT, this._config.theme_vars || {});
     return { fonts: t.fonts, css: ":root,:host{" + Object.keys(vars).map(function (k) { return "--" + k + ":" + vars[k] + ";"; }).join("") + "}" };
   }
   _applyTheme() {
@@ -481,6 +724,13 @@ class FloorConsoleCard extends HTMLElement {
     $("sheetBack").addEventListener("click", function () { this._navBack = true; if (this._backFn) this._backFn(); this._navBack = false; }.bind(this));
     $("scrim").addEventListener("click", function (e) { if (e.target === $("scrim")) this._closeSheet(); }.bind(this));
     $("radialTrigger").addEventListener("click", this._openAreaList.bind(this));
+    $("fpAll").addEventListener("click", this._openAreaList.bind(this));
+    $("fpMap").addEventListener("click", function (e) {
+      var t = e.target.closest("[data-area]");
+      var a = t && this._AREAS.find(function (x) { return x.id === t.getAttribute("data-area"); });
+      if (a) this._openAreaSheet(a, true);
+    }.bind(this));
+    this._fpMount();
     $("badges").addEventListener("click", function (e) {
       var badge = e.target.closest(".badge[data-list-sensor], .badge[data-power], .badge[data-appl], .badge[data-vac]");
       if (!badge) return;
@@ -584,7 +834,10 @@ class FloorConsoleCard extends HTMLElement {
     }, 30000);
   }
 
-  _icon(id) { return '<svg viewBox="0 0 24 24"><use href="#' + id + '"/></svg>'; }
+  _icon(id) {
+    if (String(id).indexOf(":") > 0) return '<ha-icon icon="' + id + '"></ha-icon>';
+    return '<svg viewBox="0 0 24 24"><use href="#' + id + '"/></svg>';
+  }
 
   // ---- configuration-driven areas ---------------------------------------
   // Areas, rows and icons are generated from HA's own registries (floors,
@@ -741,7 +994,7 @@ class FloorConsoleCard extends HTMLElement {
       areas.push({
         id: aid, floor: a.floor_id, common: !!ac.common, name: name, roman: ac.roman || "",
         devCols: ac.device_columns || cfg.device_columns || 3,
-        icon: ac.icon || (hint && hint[1]) || "i-door",
+        icon: ac.icon || (cfg.ha_icons && a.icon) || (hint && hint[1]) || "i-door",
         cat: ac.cat || (hint && hint[2]) || (a.floor_id ? "room" : "common"),
         rows: rows
       });
@@ -755,7 +1008,66 @@ class FloorConsoleCard extends HTMLElement {
     return areas;
   }
 
-  _areaLive(a) { return a.rows.some(function (r) { return this._isOn(r.entity); }.bind(this)); }
+  // what's running in an area besides its lights (the map's corner dots, the area list's dot)
+  _areaRunning(a) {
+    var on = this._isOn.bind(this), cfg = this._config || {}, h = this._hass, out = { fan: false, ac: false, media: false, curtain: false };
+    a.rows.forEach(function (r) {
+      if (r.curtain) { if (r.entities.some(on)) out.curtain = true; return; }
+      if (!r.entity || !on(r.entity)) return;
+      var d = r.entity.split(".")[0];
+      if (d === "fan") out.fan = true;
+      else if (d === "climate") out.ac = true;
+      else if (d === "media_player") out.media = true;
+    });
+    if (this._applianceRows(a.id).some(function (r) { return this._applianceActive(cfg.appliances[r.appliance]); }.bind(this))) out.media = true;
+    return out;
+  }
+  _areaLive(a) { var r = this._areaRunning(a); return r.fan || r.ac || r.media || r.curtain; }
+
+  // ---- floor plan ---------------------------------------------------------
+  _fpMount() {
+    var fp = (this._config || {}).floorplan, map = this._$ && this._$("fpMap");
+    if (!map) return;
+    this._root.querySelector(".radialzone").classList.toggle("has-fp", !!fp);
+    if (!fp) { map.innerHTML = ""; this._fp = null; return; }
+    if (this._fp && this._fp.src === fp) return;
+    var r = fccFloorplan(fp);
+    this._fp = { src: fp, lit: {}, pins: {} };
+    map.style.aspectRatio = r.view[2] + " / " + r.view[3];
+    map.innerHTML = r.svg + '<div class="fp-pins">' + r.pins.map(function (p) {
+      return '<button class="fp-pin" data-area="' + p.area + '" style="left:' + (p.x * 100).toFixed(2) + '%;top:' + (p.y * 100).toFixed(2) + '%"><span class="fp-ic"></span>' +
+        '<i class="fp-d fp-d-fan"></i><i class="fp-d fp-d-ac"></i><i class="fp-d fp-d-media"></i><i class="fp-d fp-d-curtain"></i></button>';
+    }).join("") + "</div>";
+    if (this._hass) this._fpRender();
+  }
+  // live state: a room glows while any of its lights is on (`lights` maps a light
+  // to its room; unmapped lights light the area's first room), corner dots per
+  // area, and the gate drawn open / closed
+  _fpRender() {
+    var fp = this._fp, map = this._$("fpMap");
+    if (!fp) return;
+    var cfg = this._config.floorplan, lights = cfg.lights || {}, rooms = cfg.rooms || [], lit = {}, self = this;
+    var areas = this._AREAS;
+    areas.forEach(function (a) {
+      var first = rooms.find(function (r) { return r.area === a.id; });
+      if (!first) return;
+      a.rows.forEach(function (r) {
+        if (r.entity && r.entity.indexOf("light.") === 0 && self._isOn(r.entity)) lit[lights[r.entity] || first.id] = true;
+      });
+    });
+    map.querySelectorAll(".f-rm").forEach(function (g) { g.classList.toggle("lit", !!lit[g.getAttribute("data-room")]); });
+    map.querySelectorAll(".fp-pin").forEach(function (pin) {
+      var id = pin.getAttribute("data-area"), a = areas.find(function (x) { return x.id === id; });
+      pin.hidden = !a;
+      if (!a) return;
+      if (pin.getAttribute("data-icon") !== a.icon) { pin.setAttribute("data-icon", a.icon); pin.querySelector(".fp-ic").innerHTML = self._icon(a.icon); pin.setAttribute("aria-label", a.name); }
+      var run = self._areaRunning(a);
+      Object.keys(run).forEach(function (k) { pin.classList.toggle("run-" + k, run[k]); });
+      pin.classList.toggle("lit", rooms.some(function (r) { return r.area === id && lit[r.id]; }));
+    });
+    var svg = map.querySelector(".fp-svg");
+    if (svg && cfg.gate) svg.classList.toggle("gate-open", this._isOn(cfg.gate.entity));
+  }
   _areaStatus(a) {
     var onRows = a.rows.filter(function (r) { return this._isOn(r.entity); }.bind(this));
     if (!onRows.length) return this._t("all_off");
@@ -1291,12 +1603,15 @@ class FloorConsoleCard extends HTMLElement {
     body.querySelectorAll(".area-cell").forEach(function (cell) {
       cell.addEventListener("click", function () {
         var a = areas.find(function (x) { return x.id === cell.getAttribute("data-id"); });
-        if (a) self._openAreaSheet(a);
+        if (a) self._openAreaSheet(a, false);
       });
     });
   }
 
-  _openAreaSheet(a) {
+  // fromMap: opened from the floor plan, so no back arrow to the area list;
+  // re-opens (back from a camera / appliance) keep how it was first reached
+  _openAreaSheet(a, fromMap) {
+    if (fromMap !== undefined) this._areaFromMap = fromMap;
     // Master toggle only covers this area's own light rows (not switches,
     // and never anything outside this sheet) — built fresh from a.rows
     // every open, so it can't drift from what's actually shown below it.
@@ -1307,7 +1622,7 @@ class FloorConsoleCard extends HTMLElement {
       if (ids.length >= k[2]) masters.push({ master: true, kind: k[0], ids: ids });
     });
     var rows = masters.concat(this._applianceRows(a.id), a.rows);
-    this._openSheet({ id: a.id, name: a.name, roman: a.roman, icon: a.icon, common: a.common, status: this._areaStatus(a), rows: rows, back: true, pullout: true, devCols: a.devCols });
+    this._openSheet({ id: a.id, name: a.name, roman: a.roman, icon: a.icon, common: a.common, status: this._areaStatus(a), rows: rows, back: !this._areaFromMap, pullout: true, devCols: a.devCols });
     this._currentArea = a;
     this._lastArea = a;
   }
@@ -1590,6 +1905,7 @@ class FloorConsoleCard extends HTMLElement {
     }
 
     this._syncRows();
+    this._fpRender();
     if (this._embedEl) this._embedEl.hass = h;
   }
 
@@ -1870,6 +2186,33 @@ class FloorConsoleCard extends HTMLElement {
 '.radialtrigger:active{transform:scale(0.94)}' +
 '.radialtrigger svg{width:30px;height:30px;stroke:var(--accent-strong)}' +
 '.radialtrigger span{font-size:.78rem;font-weight:600;letter-spacing:.02em}' +
+'.radialzone.has-fp{flex-direction:column;align-items:stretch}' +
+'.radialzone.has-fp .radialtrigger,.radialzone.has-fp + .radialtrigger-hint{display:none}' +
+'.fp{display:none;position:relative;width:100%}' +
+'.radialzone.has-fp .fp{display:block}' +
+'.fp-map{position:relative;width:100%;border-radius:16px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}' +
+'.fp-svg{position:absolute;inset:0;width:100%;height:100%;display:block}' +
+'.fp-all{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.7rem;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}' +
+'.fp .f-wf{fill:var(--fp-wall-face);stroke:var(--fp-wall-face);stroke-width:.6}.fp .f-ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-side);stroke-width:.6}' +
+'.fp .f-wt{fill:var(--fp-wall);stroke:var(--fp-wall);stroke-width:.6;stroke-linejoin:round}' +
+'.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
+'.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
+'.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
+'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm.lit .f-glow{opacity:1}' +
+'.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5}' +
+'.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
+'.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
+'.fp .f-cupt{fill:var(--fp-cup-top);stroke:var(--fp-cup-side);stroke-width:.8}.fp .f-cupf{fill:var(--fp-cup-face)}.fp .f-cups{fill:var(--fp-cup-side)}.fp .f-cupl{stroke:var(--fp-cup-side);stroke-width:1}' +
+'.fp .f-hit{fill:transparent;cursor:pointer;transition:fill .2s}.fp .f-hit:active{fill:color-mix(in srgb,var(--accent) 18%,transparent)}' +
+'.fp-pins{position:absolute;inset:0;pointer-events:none}' +
+'.fp-pin{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:transform .15s,box-shadow .3s,border-color .3s}' +
+'.fp-pin[hidden]{display:none}.fp-pin:active{transform:scale(.9)}' +
+'.fp-pin.lit{border-color:rgba(var(--fp-glow),.95);box-shadow:0 0 0 1px rgba(var(--fp-glow),.6),0 2px 8px rgba(var(--fp-glow),.45)}' +
+'.fp-pin .fp-ic{display:flex}.fp-pin ha-icon{--mdc-icon-size:16px;display:flex}.fp-pin .fp-ic svg{width:16px;height:16px;stroke:currentColor}' +
+'.fp-d{position:absolute;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--surface);box-sizing:border-box;opacity:0;transform:scale(.4);transition:opacity .25s,transform .25s}' +
+'.fp-d-fan{top:-3px;left:-3px;background:var(--fp-fan)}.fp-d-ac{top:-3px;right:-3px;background:var(--fp-ac)}.fp-d-media{bottom:-3px;left:-3px;background:var(--fp-media)}.fp-d-curtain{bottom:-3px;right:-3px;background:var(--fp-curtain)}' +
+'.fp-pin.run-fan .fp-d-fan,.fp-pin.run-ac .fp-d-ac,.fp-pin.run-media .fp-d-media,.fp-pin.run-curtain .fp-d-curtain{opacity:1;transform:none}' +
+'.area-cell .icon ha-icon{--mdc-icon-size:24px;color:var(--accent-strong);display:flex}.sheet-head .icon ha-icon{--mdc-icon-size:18px;color:var(--accent-strong);display:flex}' +
 '.radialtrigger-hint{margin-top:10px;font-size:.72rem;color:var(--fg-dim);text-align:center}' +
 '.area-section{margin-bottom:14px}' +
 '.area-section:last-child{margin-bottom:0}' +
@@ -2087,7 +2430,7 @@ class FloorConsoleCard extends HTMLElement {
 '<div class="badges" id="badges"></div>' +
 '<div class="pgchipwrap"><button class="pgchip" id="pgChip"></button></div>' +
 '<div class="occwrap" id="occWrap" hidden><div class="occupancylist" id="occupancyList"></div><button class="occmore" id="occMore" hidden></button></div>' +
-'<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button></div>' +
+'<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button><div class="fp"><div class="fp-map" id="fpMap"></div><button class="fp-all" id="fpAll">' + this._t("all_areas") + '</button></div></div>' +
 '<p class="radialtrigger-hint">' + this._t("hint_pick") + '</p>' +
 '<div class="quickactions">' +
 '<button class="qa-btn" id="powerBtn" hidden><span class="icon"></span><span class="lbl">' + this._t("power") + '</span><span class="sub"></span></button>' +

@@ -85,6 +85,8 @@ entities:
 | `sleep`, `alarm`, `visitor`, `zones` | Quick actions, doorbell pop-up and occupancy buttons. A zone is `{key, label, camera, sensor?, vehicle_sensors?}`; it alerts on its person sensor, and on any `vehicle_sensors` (e.g. car / motorcycle occupancy) too, titled "Vehicle at …" when only a vehicle is there. One detection is shown for at most 2 minutes (`zone_max_show` seconds, or `max_show` per zone); it shows again only after the sensor has gone off and on. |
 | `gate_alert` | `{ entity: switch.gate, camera: camera.front_door }` — a row appears at the top of the home screen while the switch is `on`; one tap turns it off. With `camera`, a live view (muted, `stream_names` applies) is part of the same card, created only while the gate is open; tapping the top part closes the gate, tapping the live view opens it full size (the gate stays open). Person-detected zones get the same treatment: one card per camera (zones sharing a camera, e.g. the gate camera, stack as rows in one card over a single live view). While a camera pop-up is open the alert cards' live views are stopped (they are behind it) and come back when it closes. `max_streams` (default 2) caps how many cards stream at once, in priority order (gate first); the rest stay plain rows until a stream frees up. The controls in the camera pop-ups (大门 button etc.) come from `camera_controls`; the doorbell's watch / talk switch sits on the bottom edge of its video. If the top list doesn't fit above the quick actions, the live view shrinks (min 120px) and then the list scrolls with a "… N more" pill; rows slide in and out. While the clock / area button are hidden for room, a further swipe or wheel past the end of the list slides to a second page with them (swipe/wheel back or the "↑ alerts" chip returns; a new alert or 15 s without touch also returns). |
 | `camera_controls` | Controls under a camera's video in every camera pop-up (person zones, gate card, area camera rows, visitor all use one builder, so a camera looks the same however it was reached; only the back arrow follows the path). `{ camera.x: [ entry, ... ] }` or `{ camera.x: { label?, icon?, controls: [ ... ] } }`; an entry is an entity id or `{ entity, label?, icon?, gate? }`. `gate: true` makes the 大门 row (state + button). Every gate button (these rows and the 大门 row in the area list) needs a second tap to open (the button turns red and reads "tap again" for 4 s); closing is one tap. Opening the gate from the area list closes the pop-up (no inline camera any more: the home screen's gate alert card already shows it); in a camera pop-up it stays open. One control is a plain row; more than one collapse into a single expandable control (label default 控制 / Controls, the header shows how many are on) and the individual rows show once it is expanded. Cameras not listed show no controls. Without this option the gate camera and the doorbell get the 大门 row. Example: `camera.dahua_front_door: [{entity: switch.gate, gate: true}, light.a, light.b]`. |
+| `ha_icons` | `true` uses each area's Home Assistant icon (`mdi:*`) on the map, in the area list and in area sheet headers; `areas.<id>.icon` still wins. |
+| `floorplan` | Replaces the area button with a 3D floor plan you can tap (see below). |
 | `areas.<area_id>` | `rows`, `add`, `exclude`, `cameras`, `hide`, `name`, `roman`, `icon`, `cat` (`common`/`function`/`room`), `common`, `device_columns`. |
 | `entities.<entity_id>` | `name`, `sub`, `icon`, `order`, `kind` (curtain / sheer), `gate: true` + `cam` (render a switch as a gate row with a live camera view). Overrides win over the automatic naming. |
 | `layout` | `mobile` (default) or `panel` (480x480 wall panel: clock + date, optional `people` chips (`[{entity, name}]`; omit for clock + date only), compact sizing, `idle_return` seconds (default 60 in panel layout) that closes sheets after no touch; `hide_header: true` hides HA's top toolbar so the card gets the full height; `top_offset` px of top padding, default 22; badges sit on top, clock + date just above the area button). `min_gap` px (default 12) is the gap kept below the top list: when alert rows (gate, visitor, person zones) leave less room than that, the area button is hidden (panel layout: the clock + date too) until they clear). |
@@ -95,6 +97,30 @@ entities:
 | `camera_ratios`, `sun_entity` | Per-camera aspect ratio (default `16/9`); sun entity for day / night loading frames. |
 
 Icons: `i-bulb i-fan i-ac i-curtain i-tv i-door i-gate i-car i-sofa i-bed i-book i-table i-stove i-cabinet i-balcony i-frame i-path i-tree i-bell i-shield i-cctv i-power i-drop i-vacuum i-moon i-away i-washer i-dryer`.
+
+## Floor plan
+
+`floorplan` draws your floor as an oblique 3D plan in place of the area button. Floors stay square while walls stand up; the upper storey is raised by `storey` above rooms marked `ground: true`. Tapping any room opens its area's sheet (no back arrow); a small "All areas" chip still opens the list. Each area shows its icon at the centre of its rooms, with corner dots for what's running besides lights (fan top-left, air-con top-right, TV / appliance bottom-left, curtain open bottom-right). A room glows while one of its lights is on: `lights` maps a light to a room, and unmapped lights light the area's first listed room.
+
+Coordinates are plan units at any scale; `view` is the visible box `[x, y, w, h]`.
+
+```yaml
+floorplan:
+  view: [0, -60, 620, 460]
+  storey: 42              # 0 = single level
+  wall_height: 26
+  rooms:
+    - { id: living, area: living_room, points: [[100,20],[400,20],[400,200],[100,200]], walls: true }
+    - { id: bath, area: bedroom, floor: wet, points: [[400,20],[500,20],[500,100],[400,100]], walls: true }
+    - { id: bed, area: bedroom, points: [[400,100],[500,100],[500,200],[400,200]], walls: true }
+    - { id: yard, area: garden, floor: court, ground: true, points: [[20,200],[600,200],[600,380],[20,380]] }
+  house: [[97,17],[503,17],[503,203],[97,203]]   # outer faces of the storey below
+  partitions: [[[400,100],[500,100]]]              # walls inside one area: drawn low
+  lights: { light.bath_ceiling: bath }
+  gate: { entity: switch.gate, a: [20,250], b: [20,330], panels: 4 }
+```
+
+Other keys: `site`, `verge`, `paving` (ground polygons), `slab`, `slab_edges`, `posts`, `shadow`, `walls` (`{points, height, thickness, layer, closed}`), `ground_walls` (same, plus `mitre: true`), `open` (wall lines left open), `dividers`, `dashed`, `furniture` (`{points: [x0,y0,x1,y1], height}`), room `floor` (`room`, `wet`, `wood`, `terrace`, `court`, `stair`), room `stairs` (`{y: [y0,y1], runs: [[from, to, treads, shade, shade], ...]}`), room `visible` and `patches`, and `icons` (`{area_id: [x, y]}`) to pin an icon. Colours come from `fp-*` theme variables (`fp-room`, `fp-wall`, `fp-glow`, `fp-fan`, ...), overridable in `theme_vars`.
 
 ## Notes
 
