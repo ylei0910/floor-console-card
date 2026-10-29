@@ -398,7 +398,7 @@ function fccFloorplan(fp) {
 
   // ground level
   var gr = "";
-  (fp.verge || []).forEach(function (p) { gr += P("f-grass", p); });
+  (fp.verge || []).forEach(function (p) { gr += P("f-verge", p); });
   (fp.paving || []).forEach(function (p) { gr += P("f-pave", p); });
   if (fp.site) gr += P("f-plinth", fp.site.map(function (q) { return [q[0], q[1] + 12]; })) + P("f-ground", fp.site);
   rooms.filter(function (r) { return r.ground; }).forEach(function (r) { gr += roomSVG(r); });
@@ -499,8 +499,8 @@ function fccFloorplan(fp) {
   return { svg: svg, view: vb, pins: pins };
 }
 
-var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c3d3a4", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900" };
-var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e" };
+var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900" };
+var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e" };
 
 class FloorConsoleCard extends HTMLElement {
   setConfig(config) {
@@ -2205,7 +2205,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp-all[hidden]{display:none}.fp-all{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.7rem;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}' +
 '.fp .f-wf{fill:var(--fp-wall-face);stroke:var(--fp-wall-face);stroke-width:.6}.fp .f-ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-side);stroke-width:.6}' +
 '.fp .f-wt{fill:var(--fp-wall);stroke:var(--fp-wall);stroke-width:.6;stroke-linejoin:round}' +
-'.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
+'.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-verge{fill:var(--fp-verge)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
 '.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
 '.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
 '.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm.lit .f-glow{opacity:1}' +
