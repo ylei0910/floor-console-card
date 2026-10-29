@@ -606,6 +606,8 @@ class FloorConsoleCard extends HTMLElement {
     var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // everything shown at its natural size, as if there were no limits
     app.classList.remove("compact", "page-home");
+    var fpMap = this._fp && this._$("fpMap");
+    if (fpMap) { fpMap.style.height = ""; fpMap.style.width = ""; }
     app.classList.add("measuring");
     list.style.maxHeight = "";
     cams.forEach(function (cam) { cam.classList.remove("shrunk"); cam.style.removeProperty("--cam-h"); });
@@ -620,6 +622,15 @@ class FloorConsoleCard extends HTMLElement {
       return need + gap * Math.max(0, n - 1) + gapPx;
     };
     var over = measure() - H;
+    // 0) a floor plan first shrinks (keeping its shape, centred) down to 140 px tall
+    if (over > 0 && fpMap && fpMap.offsetHeight) {
+      var natural = fpMap.offsetHeight, target = Math.max(140, natural - over);
+      if (target < natural) {
+        fpMap.style.height = target + "px";
+        fpMap.style.width = (target * this._fp.ratio).toFixed(1) + "px";
+        over = measure() - H;
+      }
+    }
     if (over > 0) {
       // 1) hide the area button (+ clock in the panel layout)
       app.classList.add("compact");
@@ -1093,7 +1104,7 @@ class FloorConsoleCard extends HTMLElement {
     if (!fp) { map.innerHTML = ""; this._fp = null; return; }
     if (this._fp && this._fp.src === fp) return;
     var r = fccFloorplan(fp);
-    this._fp = { src: fp, lit: {}, pins: {} };
+    this._fp = { src: fp, lit: {}, pins: {}, ratio: r.view[2] / r.view[3] };
     map.style.aspectRatio = r.view[2] + " / " + r.view[3];
     // tap_radius: only a circle of that many px around each icon is tappable, not the whole room
     map.classList.toggle("pin-only", fp.tap_radius > 0);
@@ -2283,7 +2294,7 @@ class FloorConsoleCard extends HTMLElement {
 '.radialzone.has-fp .radialtrigger,.radialzone.has-fp + .radialtrigger-hint{display:none}' +
 '.fp{display:none;position:relative;width:100%}' +
 '.radialzone.has-fp .fp{display:block}' +
-'.fp-map{position:relative;width:100%;border-radius:16px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}' +
+'.fp-map{position:relative;width:100%;margin:0 auto;border-radius:16px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}' +
 '.fp-svg{position:absolute;inset:0;width:100%;height:100%;display:block}' +
 '.fp-all[hidden]{display:none}.fp-all{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.7rem;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}' +
 '.fp .f-wf{fill:var(--fp-wall-face);stroke:var(--fp-wall-face);stroke-width:.6}.fp .f-ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-side);stroke-width:.6}' +
@@ -2421,7 +2432,7 @@ class FloorConsoleCard extends HTMLElement {
 '.app.compact.page-home .occwrap{display:none}' +
 '.pgchipwrap{display:none;flex:none;position:relative;height:0;z-index:3}' +
 '.pgchip{position:absolute;left:50%;top:0;transform:translateX(-50%);white-space:nowrap;padding:4px 16px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,#000);color:var(--fg);font:inherit;font-size:.74rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.45)}' +
-'.mapchipwrap{display:none;flex:none;justify-content:center}.app.compact:not(.page-home) .mapchipwrap{display:flex}' +
+'.mapchipwrap{display:none;flex:none;justify-content:center}.app.compact:not(.page-home) .occwrap:not([hidden]) + .mapchipwrap{display:flex}' +
 '.mapchip{padding:3px 14px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 70%,transparent);color:var(--fg-dim);font:inherit;font-size:.72rem;font-weight:600;cursor:pointer}' +
 '.app.pg-out-alerts .mapchipwrap{animation:pgOut .2s ease forwards}.app.pg-in-alerts .mapchipwrap{animation:pgIn .32s cubic-bezier(.2,.8,.2,1)}' +
 '.app.compact.page-home .pgchipwrap{display:block}.app.panel .pgchipwrap{order:-1}' +
