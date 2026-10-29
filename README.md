@@ -120,7 +120,7 @@ floorplan:
   gate: { entity: switch.gate, a: [20,250], b: [20,330], panels: 4 }
 ```
 
-Other keys: `site`, `verge`, `paving` (ground polygons), `slab`, `slab_edges`, `posts`, `shadow`, `walls` (`{points, height, thickness, layer, closed}`), `ground_walls` (same, plus `mitre: true`), `open` (wall lines left open), `dividers`, `dashed`, `furniture` (`{points: [x0,y0,x1,y1], height}`), room `floor` (`room`, `wet`, `wood`, `terrace`, `court`, `stair`), room `stairs` (`{y: [y0,y1], runs: [[from, to, treads, shade, shade], ...]}`), room `visible` and `patches`, and `icons` (`{area_id: [x, y]}`) to pin an icon. Colours come from `fp-*` theme variables (`fp-room`, `fp-wall`, `fp-glow`, `fp-fan`, ...), overridable in `theme_vars`.
+Other keys: `site`, `verge`, `paving` (ground polygons), `slab`, `slab_edges`, `posts`, `shadow`, `walls` (`{points, height, thickness, layer, closed}`), `ground_walls` (same, plus `mitre: true`), `open` (wall lines left open), `dividers`, `dashed`, `furniture` (`{points: [x0,y0,x1,y1], height}`), room `floor` (`room`, `wet`, `wood`, `terrace`, `court`, `stair`), room `stairs` (`{y: [y0,y1], runs: [[from, to, treads, shade, shade], ...]}`), room `visible` and `patches`, and `icons` (`{area_id: [x, y]}`) to pin an icon. A room glows in its lights' own colour (HA's `rgb_color` / colour temperature) and brightness; on/off lights, which report no colour, use `default_light` (Kelvin or `[r, g, b]`, default `4500` soft neutral white), and `light_colours: {light.x: 3000}` sets one light's colour. In light themes near-white light is nudged slightly off white so the glow still shows. Colours come from `fp-*` theme variables (`fp-room`, `fp-wall`, `fp-glow`, `fp-fan`, ...), overridable in `theme_vars`.
 
 ## Notes
 

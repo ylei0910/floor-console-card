@@ -369,8 +369,9 @@ function fccFloorplan(fp) {
     var s = '<g class="f-rm" data-room="' + esc(r.id) + '">' + P("f-fl f-" + (r.floor || "room"), r.points);
     (r.patches || []).forEach(function (pa) { s += P("f-" + (pa.fill || "grass"), pa.points); });
     if (r.stairs) s += stairs(r);
-    return s + P("f-glow", r.points, ' fill="url(#fpGlow)"') + "</g>";
+    return s + P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"') + "</g>";
   }
+  var safe = function (id) { return String(id).replace(/[^a-zA-Z0-9_-]/g, "_"); };
   var hit = function (r) { return P("f-hit", r.points, ' data-area="' + esc(r.area) + '"'); };
 
   // folding gate: closed = panels in a line across the opening; open = folded
@@ -492,11 +493,44 @@ function fccFloorplan(fp) {
   });
 
   var svg = '<svg class="fp-svg" viewBox="' + vb.join(" ") + '" preserveAspectRatio="xMidYMid meet">' +
-    '<defs><radialGradient id="fpGlow" cx="50%" cy="55%" r="65%"><stop offset="0" style="stop-color:rgb(var(--fp-glow));stop-opacity:.6"/><stop offset=".6" style="stop-color:rgb(var(--fp-glow));stop-opacity:.22"/><stop offset="1" style="stop-color:rgb(var(--fp-glow));stop-opacity:0"/></radialGradient>' +
+    '<defs>' + rooms.map(function (r) {
+      var c = "rgb(var(--fpg-" + safe(r.id) + ",var(--fp-glow)))";
+      return '<radialGradient id="fpG-' + safe(r.id) + '" cx="50%" cy="55%" r="65%"><stop offset="0" style="stop-color:' + c + ';stop-opacity:.6"/><stop offset=".6" style="stop-color:' + c + ';stop-opacity:.22"/><stop offset="1" style="stop-color:' + c + ';stop-opacity:0"/></radialGradient>';
+    }).join("") +
     '<filter id="fpSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>' +
     (fp.site ? '<clipPath id="fpClip">' + P("", fp.site) + "</clipPath>" : "") + "</defs>" +
     "<g>" + gr + "</g><g>" + bk + '</g><g transform="translate(' + LIFT[0] + " " + LIFT[1] + ')">' + up + "</g></svg>";
   return { svg: svg, view: vb, pins: pins };
+}
+
+// A light's colour as [r, g, b, strength 0..1]. `override` (Kelvin or [r, g, b])
+// wins; otherwise HA's rgb_color (also set for colour-temperature lights), then
+// color_temp_kelvin, then `fallback` for on/off lights (default 4500 K, soft neutral white).
+function fccLightColour(st, override, fallback) {
+  var a = (st && st.attributes) || {}, k = a.color_temp_kelvin, c = a.rgb_color;
+  var bri = a.brightness != null ? Math.max(0.15, a.brightness / 255) : 1;
+  if (override != null) { if (Array.isArray(override)) c = override; else { c = null; k = +override; } }
+  else if (!(Array.isArray(c) && c.length === 3) && !k) {
+    if (Array.isArray(fallback)) c = fallback; else k = +fallback || 4500;
+  }
+  if (Array.isArray(c) && c.length === 3) return [c[0], c[1], c[2], bri];
+  // Tanner Helland's blackbody approximation
+  var t = k / 100, r, g, b;
+  r = t <= 66 ? 255 : 329.7 * Math.pow(t - 60, -0.1332);
+  g = t <= 66 ? 99.47 * Math.log(t) - 161.12 : 288.12 * Math.pow(t - 60, -0.0755);
+  b = t >= 66 ? 255 : t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04;
+  var cl = function (v) { return Math.max(0, Math.min(255, Math.round(v))); };
+  return [cl(r), cl(g), cl(b), bri];
+}
+// Night: the light's own colour. Day: near-white light on a light floor would be
+// invisible, so the colour is pushed away from white along its own direction
+// (warm stays warm, cool stays cool), and plain white becomes a cool neutral.
+function fccGlowTint(rgb, dark) {
+  if (dark) return rgb.map(Math.round);
+  var dist = 255 - Math.min(rgb[0], rgb[1], rgb[2]);
+  if (dist < 18) return [214, 224, 238];
+  var k = Math.min(1.8, Math.max(1, 70 / dist));
+  return rgb.map(function (v) { return Math.max(0, Math.round(255 - (255 - v) * k)); });
 }
 
 var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900" };
@@ -1056,15 +1090,27 @@ class FloorConsoleCard extends HTMLElement {
     var fp = this._fp, map = this._$("fpMap");
     if (!fp) return;
     var cfg = this._config.floorplan, lights = cfg.lights || {}, rooms = cfg.rooms || [], lit = {}, self = this;
-    var areas = this._AREAS;
+    var areas = this._AREAS, svg = map.querySelector(".fp-svg");
+    var dark = ((FCC_THEMES[this._themeName()] || {}).vars || {})["color-scheme"] === "dark";
     areas.forEach(function (a) {
       var first = rooms.find(function (r) { return r.area === a.id; });
       if (!first) return;
       a.rows.forEach(function (r) {
-        if (r.entity && r.entity.indexOf("light.") === 0 && self._isOn(r.entity)) lit[lights[r.entity] || first.id] = true;
+        if (!r.entity || r.entity.indexOf("light.") !== 0 || !self._isOn(r.entity)) return;
+        var id = lights[r.entity] || first.id, c = fccLightColour(self._hass.states[r.entity], (cfg.light_colours || {})[r.entity], cfg.default_light);
+        var m = lit[id] = lit[id] || { r: 0, g: 0, b: 0, w: 0, bri: 0 };
+        m.r += c[0] * c[3]; m.g += c[1] * c[3]; m.b += c[2] * c[3]; m.w += c[3]; m.bri = Math.max(m.bri, c[3]);
       });
     });
-    map.querySelectorAll(".f-rm").forEach(function (g) { g.classList.toggle("lit", !!lit[g.getAttribute("data-room")]); });
+    var colour = function (m) { return fccGlowTint([m.r / m.w, m.g / m.w, m.b / m.w], dark); };
+    map.querySelectorAll(".f-rm").forEach(function (g) {
+      var id = g.getAttribute("data-room"), m = lit[id], key = "--fpg-" + id.replace(/[^a-zA-Z0-9_-]/g, "_");
+      g.classList.toggle("lit", !!m);
+      if (!m) return;
+      svg.style.setProperty(key, colour(m).join(","));
+      // a dimmed light glows softer
+      g.querySelector(".f-glow").style.opacity = (0.45 + 0.55 * m.bri).toFixed(2);
+    });
     map.querySelectorAll(".fp-pin").forEach(function (pin) {
       var id = pin.getAttribute("data-area"), a = areas.find(function (x) { return x.id === id; });
       pin.hidden = !a;
@@ -1072,9 +1118,10 @@ class FloorConsoleCard extends HTMLElement {
       if (pin.getAttribute("data-icon") !== a.icon) { pin.setAttribute("data-icon", a.icon); pin.querySelector(".fp-ic").innerHTML = self._icon(a.icon); pin.setAttribute("aria-label", a.name); }
       var run = self._areaRunning(a);
       Object.keys(run).forEach(function (k) { pin.classList.toggle("run-" + k, run[k]); });
-      pin.classList.toggle("lit", rooms.some(function (r) { return r.area === id && lit[r.id]; }));
+      var am = rooms.filter(function (r) { return r.area === id && lit[r.id]; }).map(function (r) { return lit[r.id]; });
+      pin.classList.toggle("lit", am.length > 0);
+      if (am.length) pin.style.setProperty("--fp-glow", colour(am.reduce(function (s, m) { return { r: s.r + m.r, g: s.g + m.g, b: s.b + m.b, w: s.w + m.w }; }, { r: 0, g: 0, b: 0, w: 0 })).join(","));
     });
-    var svg = map.querySelector(".fp-svg");
     if (svg && cfg.gate) svg.classList.toggle("gate-open", this._isOn(cfg.gate.entity));
   }
   _areaStatus(a) {
@@ -2208,7 +2255,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-verge{fill:var(--fp-verge)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
 '.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
 '.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
-'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm.lit .f-glow{opacity:1}' +
+'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
 '.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5}' +
 '.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
