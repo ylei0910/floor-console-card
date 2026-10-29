@@ -369,7 +369,15 @@ function fccFloorplan(fp) {
     var s = '<g class="f-rm" data-room="' + esc(r.id) + '">' + P("f-fl f-" + (r.floor || "room"), r.points);
     (r.patches || []).forEach(function (pa) { s += P("f-" + (pa.fill || "grass"), pa.points); });
     if (r.stairs) s += stairs(r);
-    return s + P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"') + "</g>";
+    s += P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
+    // colour accent: an RGB light in colour mode glows as a soft edge along the walls
+    // band width follows the room's narrow side, so a small room keeps its white centre
+    var xs = r.points.map(function (q) { return q[0]; }), ys = r.points.map(function (q) { return q[1]; });
+    var bw = Math.max(10, Math.min(34, 0.4 * Math.min(Math.max.apply(0, xs) - Math.min.apply(0, xs), Math.max.apply(0, ys) - Math.min.apply(0, ys))));
+    // layered strokes (vector, no blur raster) fade from the wall into the room
+    var layers = "";
+    for (var i = 0; i < 14; i++) layers += P("", r.points, ' style="stroke-width:' + (2 * bw * (1 - i / 14)).toFixed(1) + '"');
+    return s + '<g class="f-accent" clip-path="url(#fpC-' + safe(r.id) + ')">' + layers + "</g></g>";
   }
   var safe = function (id) { return String(id).replace(/[^a-zA-Z0-9_-]/g, "_"); };
   var hit = function (r) { return P("f-hit", r.points, ' data-area="' + esc(r.area) + '"'); };
@@ -496,7 +504,7 @@ function fccFloorplan(fp) {
     '<defs>' + rooms.map(function (r) {
       var c = "rgb(var(--fpg-" + safe(r.id) + ",var(--fp-glow)))";
       return '<radialGradient id="fpG-' + safe(r.id) + '" cx="50%" cy="55%" r="65%"><stop offset="0" style="stop-color:' + c + ';stop-opacity:.6"/><stop offset=".6" style="stop-color:' + c + ';stop-opacity:.22"/><stop offset="1" style="stop-color:' + c + ';stop-opacity:0"/></radialGradient>';
-    }).join("") +
+    }).join("") + rooms.map(function (r) { return '<clipPath id="fpC-' + safe(r.id) + '">' + P("", r.points) + "</clipPath>"; }).join("") +
     '<filter id="fpSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>' +
     (fp.site ? '<clipPath id="fpClip">' + P("", fp.site) + "</clipPath>" : "") + "</defs>" +
     "<g>" + gr + "</g><g>" + bk + '</g><g transform="translate(' + LIFT[0] + " " + LIFT[1] + ')">' + up + "</g></svg>";
@@ -522,6 +530,14 @@ function fccLightColour(st, override, fallback) {
   var cl = function (v) { return Math.max(0, Math.min(255, Math.round(v))); };
   return [cl(r), cl(g), cl(b), bri];
 }
+// Is the light showing a colour (RGB light in a colour mode), as opposed to white?
+function fccIsColour(st, rgb) {
+  var mode = st && st.attributes && st.attributes.color_mode;
+  if (mode) return ["hs", "rgb", "xy", "rgbw", "rgbww"].indexOf(mode) >= 0 && fccSat(rgb) > 0.25;
+  return fccSat(rgb) > 0.45;
+}
+function fccSat(c) { var mx = Math.max(c[0], c[1], c[2]), mn = Math.min(c[0], c[1], c[2]); return mx ? (mx - mn) / mx : 0; }
+
 // Night: the light's own colour. Day: near-white light on a light floor would be
 // invisible, so the colour is pushed away from white along its own direction
 // (warm stays warm, cool stays cool), and plain white becomes a cool neutral.
@@ -1097,19 +1113,29 @@ class FloorConsoleCard extends HTMLElement {
       if (!first) return;
       a.rows.forEach(function (r) {
         if (!r.entity || r.entity.indexOf("light.") !== 0 || !self._isOn(r.entity)) return;
-        var id = lights[r.entity] || first.id, c = fccLightColour(self._hass.states[r.entity], (cfg.light_colours || {})[r.entity], cfg.default_light);
-        var m = lit[id] = lit[id] || { r: 0, g: 0, b: 0, w: 0, bri: 0 };
+        var id = lights[r.entity] || first.id, st = self._hass.states[r.entity];
+        var c = fccLightColour(st, (cfg.light_colours || {})[r.entity], cfg.default_light);
+        var room = lit[id] = lit[id] || { white: { r: 0, g: 0, b: 0, w: 0, bri: 0 }, accent: { r: 0, g: 0, b: 0, w: 0, bri: 0 } };
+        // white lights light the floor; RGB lights in colour mode add a coloured edge
+        var m = fccIsColour(st, c) ? room.accent : room.white;
         m.r += c[0] * c[3]; m.g += c[1] * c[3]; m.b += c[2] * c[3]; m.w += c[3]; m.bri = Math.max(m.bri, c[3]);
       });
     });
     var colour = function (m) { return fccGlowTint([m.r / m.w, m.g / m.w, m.b / m.w], dark); };
     map.querySelectorAll(".f-rm").forEach(function (g) {
-      var id = g.getAttribute("data-room"), m = lit[id], key = "--fpg-" + id.replace(/[^a-zA-Z0-9_-]/g, "_");
-      g.classList.toggle("lit", !!m);
-      if (!m) return;
-      svg.style.setProperty(key, colour(m).join(","));
-      // a dimmed light glows softer
-      g.querySelector(".f-glow").style.opacity = (0.45 + 0.55 * m.bri).toFixed(2);
+      var id = g.getAttribute("data-room"), room = lit[id], key = "--fpg-" + id.replace(/[^a-zA-Z0-9_-]/g, "_");
+      g.classList.toggle("lit", !!room);
+      g.classList.toggle("acc", !!(room && room.accent.w));
+      if (!room) return;
+      var base = room.white.w ? room.white : room.accent, glow = g.querySelector(".f-glow");
+      svg.style.setProperty(key, colour(base).join(","));
+      // a dimmed light glows softer; a strip alone only tints the floor faintly
+      glow.style.opacity = ((0.45 + 0.55 * base.bri) * (room.white.w ? 1 : 0.4)).toFixed(2);
+      if (room.accent.w) {
+        var acc = g.querySelector(".f-accent");
+        acc.style.stroke = "rgb(" + colour(room.accent).join(",") + ")";
+        acc.style.opacity = ((room.white.w ? 0.3 : 0.45) + 0.35 * room.accent.bri).toFixed(2);
+      }
     });
     map.querySelectorAll(".fp-pin").forEach(function (pin) {
       var id = pin.getAttribute("data-area"), a = areas.find(function (x) { return x.id === id; });
@@ -1118,7 +1144,7 @@ class FloorConsoleCard extends HTMLElement {
       if (pin.getAttribute("data-icon") !== a.icon) { pin.setAttribute("data-icon", a.icon); pin.querySelector(".fp-ic").innerHTML = self._icon(a.icon); pin.setAttribute("aria-label", a.name); }
       var run = self._areaRunning(a);
       Object.keys(run).forEach(function (k) { pin.classList.toggle("run-" + k, run[k]); });
-      var am = rooms.filter(function (r) { return r.area === id && lit[r.id]; }).map(function (r) { return lit[r.id]; });
+      var am = rooms.filter(function (r) { return r.area === id && lit[r.id]; }).map(function (r) { var x = lit[r.id]; return x.white.w ? x.white : x.accent; });
       pin.classList.toggle("lit", am.length > 0);
       if (am.length) pin.style.setProperty("--fp-glow", colour(am.reduce(function (s, m) { return { r: s.r + m.r, g: s.g + m.g, b: s.b + m.b, w: s.w + m.w }; }, { r: 0, g: 0, b: 0, w: 0 })).join(","));
     });
@@ -2255,7 +2281,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-verge{fill:var(--fp-verge)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
 '.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
 '.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
-'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
+'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-accent{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-accent polygon{fill:none;stroke-linejoin:round;stroke-opacity:.085}.fp .f-rm:not(.acc) .f-accent{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
 '.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5}' +
 '.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
