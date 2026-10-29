@@ -1040,6 +1040,9 @@ class FloorConsoleCard extends HTMLElement {
     var r = fccFloorplan(fp);
     this._fp = { src: fp, lit: {}, pins: {} };
     map.style.aspectRatio = r.view[2] + " / " + r.view[3];
+    // tap_radius: only a circle of that many px around each icon is tappable, not the whole room
+    map.classList.toggle("pin-only", fp.tap_radius > 0);
+    map.style.setProperty("--fp-tap", (fp.tap_radius > 14 ? fp.tap_radius - 14 : 0) + "px");
     map.innerHTML = r.svg + '<div class="fp-pins">' + r.pins.map(function (p) {
       return '<button class="fp-pin" data-area="' + p.area + '" style="left:' + (p.x * 100).toFixed(2) + '%;top:' + (p.y * 100).toFixed(2) + '%"><span class="fp-ic"></span>' +
         '<i class="fp-d fp-d-fan"></i><i class="fp-d fp-d-ac"></i><i class="fp-d fp-d-media"></i><i class="fp-d fp-d-curtain"></i></button>';
@@ -2211,8 +2214,9 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
 '.fp .f-cupt{fill:var(--fp-cup-top);stroke:var(--fp-cup-side);stroke-width:.8}.fp .f-cupf{fill:var(--fp-cup-face)}.fp .f-cups{fill:var(--fp-cup-side)}.fp .f-cupl{stroke:var(--fp-cup-side);stroke-width:1}' +
 '.fp .f-hit{fill:transparent;cursor:pointer;transition:fill .2s}.fp .f-hit:active{fill:color-mix(in srgb,var(--accent) 18%,transparent)}' +
-'.fp-pins{position:absolute;inset:0;pointer-events:none}' +
+'.fp-pins{position:absolute;inset:0;z-index:1;pointer-events:none}' +
 '.fp-pin{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:transform .15s,box-shadow .3s,border-color .3s}' +
+'.fp-map.pin-only .f-hit{pointer-events:none;cursor:default}.fp-pin::before{content:"";position:absolute;z-index:-1;inset:calc(-1 * var(--fp-tap,0px));border-radius:50%}' +
 '.fp-pin[hidden]{display:none}.fp-pin:active{transform:scale(.9)}' +
 '.fp-pin.lit{border-color:rgba(var(--fp-glow),.95);box-shadow:0 0 0 1px rgba(var(--fp-glow),.6),0 2px 8px rgba(var(--fp-glow),.45)}' +
 '.fp-pin .fp-ic{display:flex}.fp-pin ha-icon{--mdc-icon-size:16px;display:flex}.fp-pin .fp-ic svg{width:16px;height:16px;stroke:currentColor}' +
