@@ -371,9 +371,9 @@ function fccFloorplan(fp) {
     if (r.stairs) s += stairs(r);
     var glow = P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
     // colour accent: an RGB light in colour mode glows as a soft edge along the walls
-    // band width follows the room's narrow side, so a small room keeps its white centre
+    // a thin band along the walls, a little narrower in small rooms
     var xs = r.points.map(function (q) { return q[0]; }), ys = r.points.map(function (q) { return q[1]; });
-    var bw = Math.max(10, Math.min(34, 0.4 * Math.min(Math.max.apply(0, xs) - Math.min.apply(0, xs), Math.max.apply(0, ys) - Math.min.apply(0, ys))));
+    var bw = Math.max(4, Math.min(8, 0.12 * Math.min(Math.max.apply(0, xs) - Math.min.apply(0, xs), Math.max.apply(0, ys) - Math.min.apply(0, ys))));
     // layered strokes (vector, no blur raster) fade from the wall into the room
     var layers = "";
     for (var i = 0; i < 14; i++) layers += P("", r.points, ' style="stroke-width:' + (2 * bw * (1 - i / 14)).toFixed(1) + '"');
@@ -437,6 +437,10 @@ function fccFloorplan(fp) {
     (fp.posts || []).forEach(function (p) { bk += P("f-ws", [p, [p[0] + 5, p[1]], mv([p[0] + 5, p[1]], LIFT), mv(p, LIFT)]); });
   }
 
+  function segDist(q, a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
+  }
   // upper level
   var up = "";
   if (E) {
@@ -445,7 +449,11 @@ function fccFloorplan(fp) {
   }
   rooms.filter(function (r) { return !r.ground; }).forEach(function (r) { up += roomSVG(r); });
   (fp.dashed || []).forEach(function (p) { up += P("f-dash", p); });
-  (fp.dividers || []).forEach(function (l) { up += Ln("f-div", [l[0], l[1]], [l[2], l[3]]); });
+  (fp.dividers || []).forEach(function (l) {
+    var mid = [(l[0] + l[2]) / 2, (l[1] + l[3]) / 2];
+    var by = rooms.filter(function (r) { return !r.ground && r.points.some(function (a, i) { return segDist(mid, a, r.points[(i + 1) % r.points.length]) < 4; }); });
+    up += '<line class="f-div" data-rooms="' + esc(by.map(function (r) { return r.id; }).join(" ")) + '" x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '"/>';
+  });
   var uw = walls();
   rooms.filter(function (r) { return !r.ground && r.walls; }).forEach(function (r) { uw.line(r.points, H, T, null, true); });
   (fp.walls || []).forEach(function (w) { uw.line(w.points, w.height, w.thickness, w.layer, w.closed); });
@@ -470,10 +478,6 @@ function fccFloorplan(fp) {
       if ((p[i][1] > q[1]) !== (p[j][1] > q[1]) && q[0] < (p[j][0] - p[i][0]) * (q[1] - p[i][1]) / (p[j][1] - p[i][1]) + p[i][0]) c = !c;
     }
     return c;
-  };
-  var segDist = function (q, a, b) {
-    var dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
-    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
   };
   function centre(polys) {
     var A = 0, X = 0, Y = 0;
@@ -1131,12 +1135,12 @@ class FloorConsoleCard extends HTMLElement {
       var base = room.white.w ? room.white : room.accent, glow = g.querySelector(".f-glow");
       svg.style.setProperty(key, colour(base).join(","));
       // a dimmed light glows softer; a strip alone only tints the floor faintly
-      glow.style.opacity = ((0.45 + 0.55 * base.bri) * (room.white.w ? 1 : 0.25)).toFixed(2);
+      glow.style.opacity = ((0.45 + 0.55 * base.bri) * (room.white.w ? 1 : 0.15)).toFixed(2);
       if (room.accent.w) {
         var acc = g.querySelector(".f-accent");
         acc.style.stroke = "rgb(" + colour(room.accent).join(",") + ")";
         // with a white light on, the strip is an accent only
-        acc.style.opacity = (room.white.w ? 0.2 + 0.25 * room.accent.bri : 0.18 + 0.17 * room.accent.bri).toFixed(2);
+        acc.style.opacity = (room.white.w ? 0.35 + 0.3 * room.accent.bri : 0.35 + 0.3 * room.accent.bri).toFixed(2);
       }
     });
     map.querySelectorAll(".fp-pin").forEach(function (pin) {
@@ -1149,6 +1153,10 @@ class FloorConsoleCard extends HTMLElement {
       var am = rooms.filter(function (r) { return r.area === id && lit[r.id]; }).map(function (r) { var x = lit[r.id]; return x.white.w ? x.white : x.accent; });
       pin.classList.toggle("lit", am.length > 0);
       if (am.length) pin.style.setProperty("--fp-glow", colour(am.reduce(function (s, m) { return { r: s.r + m.r, g: s.g + m.g, b: s.b + m.b, w: s.w + m.w }; }, { r: 0, g: 0, b: 0, w: 0 })).join(","));
+    });
+    // an RGB edge runs along open-plan dividers; the dashed line would clash with it
+    map.querySelectorAll(".f-div").forEach(function (d) {
+      d.classList.toggle("off", (d.getAttribute("data-rooms") || "").split(" ").some(function (id) { return lit[id] && lit[id].accent.w; }));
     });
     if (svg && cfg.gate) svg.classList.toggle("gate-open", this._isOn(cfg.gate.entity));
   }
@@ -2284,7 +2292,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
 '.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
 '.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-accent{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-accent polygon{fill:none;stroke-linejoin:round;stroke-opacity:.06}.fp .f-rm:not(.acc) .f-accent{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
-'.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5}' +
+'.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5;transition:opacity .3s}.fp .f-div.off{opacity:0}' +
 '.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
 '.fp .f-cupt{fill:var(--fp-cup-top);stroke:var(--fp-cup-side);stroke-width:.8}.fp .f-cupf{fill:var(--fp-cup-face)}.fp .f-cups{fill:var(--fp-cup-side)}.fp .f-cupl{stroke:var(--fp-cup-side);stroke-width:1}' +
