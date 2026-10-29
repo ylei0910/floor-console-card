@@ -1131,12 +1131,12 @@ class FloorConsoleCard extends HTMLElement {
       var base = room.white.w ? room.white : room.accent, glow = g.querySelector(".f-glow");
       svg.style.setProperty(key, colour(base).join(","));
       // a dimmed light glows softer; a strip alone only tints the floor faintly
-      glow.style.opacity = ((0.45 + 0.55 * base.bri) * (room.white.w ? 1 : 0.4)).toFixed(2);
+      glow.style.opacity = ((0.45 + 0.55 * base.bri) * (room.white.w ? 1 : 0.25)).toFixed(2);
       if (room.accent.w) {
         var acc = g.querySelector(".f-accent");
         acc.style.stroke = "rgb(" + colour(room.accent).join(",") + ")";
         // with a white light on, the strip is an accent only
-        acc.style.opacity = (room.white.w ? 0.2 + 0.25 * room.accent.bri : 0.3 + 0.25 * room.accent.bri).toFixed(2);
+        acc.style.opacity = (room.white.w ? 0.2 + 0.25 * room.accent.bri : 0.18 + 0.17 * room.accent.bri).toFixed(2);
       }
     });
     map.querySelectorAll(".fp-pin").forEach(function (pin) {
