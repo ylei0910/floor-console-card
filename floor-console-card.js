@@ -99,7 +99,9 @@ var FCC_I18N = {
     "gate_alert_tap": "点击关闭大门",
     "gate_cam": "前门",
     "more_items": "… 还有 {n} 项",
-    "alerts_chip": "↑ 还有 {n} 项提醒",
+    "alerts_chip": "↑ 上滑 · 还有 {n} 项提醒",
+    "map_chip": "↓ 下拉返回地图",
+    "areas_chip": "↓ 下拉返回区域",
     "view": "查看 ›",
     "back": "返回",
     "close": "关闭",
@@ -221,7 +223,9 @@ var FCC_I18N = {
     "gate_alert_tap": "Tap to close the gate",
     "gate_cam": "Front door",
     "more_items": "… {n} more",
-    "alerts_chip": "↑ {n} alerts",
+    "alerts_chip": "↑ Swipe up · {n} alerts",
+    "map_chip": "↓ Pull down for the map",
+    "areas_chip": "↓ Pull down for areas",
     "view": "View ›",
     "back": "Back",
     "close": "Close",
@@ -762,6 +766,7 @@ class FloorConsoleCard extends HTMLElement {
     }.bind(this));
     $("occupancyList").addEventListener("scroll", function () { this._lastScroll = Date.now(); }.bind(this), { passive: true });
     $("pgChip").addEventListener("click", function () { this._setPage("alerts"); }.bind(this));
+    $("mapChip").addEventListener("click", function () { this._setPage("home"); }.bind(this));
     this._pageGestures();
     $("occMore").addEventListener("click", function () {
       var l = $("occupancyList");
@@ -2005,25 +2010,25 @@ class FloorConsoleCard extends HTMLElement {
   // returns. New alerts and 15 s without touch bring the alerts back.
   _pageGestures() {
     var self = this, app = this._root.querySelector(".app"), $ = this._$.bind(this), ts = null;
-    var atEnd = function () { var l = $("occupancyList"); return l.scrollTop + l.clientHeight >= l.scrollHeight - 2; };
+    var atTop = function () { return $("occupancyList").scrollTop <= 0; };
     var active = function () { return app.classList.contains("compact") && !$("scrim").classList.contains("open"); };
     app.addEventListener("touchstart", function (e) {
       if (self._page === "home") self._pgArm();
       if (!active()) { ts = null; return; }
-      ts = { y: e.touches[0].clientY, end: self._page !== "home" && atEnd(), done: false };
+      ts = { y: e.touches[0].clientY, top: self._page !== "home" && atTop(), done: false };
     }, { passive: true });
     app.addEventListener("touchmove", function (e) {
       if (!ts || ts.done) return;
       var dy = e.touches[0].clientY - ts.y;
-      if (self._page === "home") { if (dy > 36) { ts.done = true; self._setPage("alerts"); } }
-      else if (ts.end && dy < -36) { ts.done = true; self._setPage("home"); }
+      if (self._page === "home") { if (dy < -36) { ts.done = true; self._setPage("alerts"); } }
+      else if (ts.top && dy > 36) { ts.done = true; self._setPage("home"); }
     }, { passive: true });
     app.addEventListener("wheel", function (e) {
       if (!active() || Date.now() - (self._pgAt || 0) < 700) return;
-      if (self._page === "home") { self._pgArm(); if (e.deltaY < -10) self._setPage("alerts"); return; }
-      // only a NEW scroll counts: the one that reached the end must have settled
-      if (e.deltaY > 0 && atEnd() && Date.now() - (self._lastScroll || 0) > 200) {
-        self._wheelAcc = (self._wheelAcc || 0) + e.deltaY;
+      if (self._page === "home") { self._pgArm(); if (e.deltaY > 10) self._setPage("alerts"); return; }
+      // only a NEW scroll counts: the one that reached the top must have settled
+      if (e.deltaY < 0 && atTop() && Date.now() - (self._lastScroll || 0) > 200) {
+        self._wheelAcc = (self._wheelAcc || 0) - e.deltaY;
         if (self._wheelAcc > 40) { self._wheelAcc = 0; self._setPage("home"); }
       } else self._wheelAcc = 0;
     }, { passive: true });
@@ -2041,8 +2046,8 @@ class FloorConsoleCard extends HTMLElement {
     if (p === (this._page || "alerts") || this._pgBusy) return;
     var self = this, up = p === "home";
     this._pgAt = Date.now();
-    app.style.setProperty("--pg-out", up ? "-22px" : "22px");
-    app.style.setProperty("--pg-in", up ? "22px" : "-22px");
+    app.style.setProperty("--pg-out", up ? "22px" : "-22px");
+    app.style.setProperty("--pg-in", up ? "-22px" : "22px");
     var outCls = "pg-out-" + (up ? "alerts" : "home"), inCls = "pg-in-" + p;
     this._pgBusy = true;
     app.classList.add(outCls);
@@ -2063,6 +2068,7 @@ class FloorConsoleCard extends HTMLElement {
     this._$("occWrap").hidden = !list.children.length;
     var n = list.querySelectorAll(".occcard:not(.leaving) .occupancybtn").length;
     this._$("pgChip").textContent = this._t("alerts_chip", { n: n });
+    this._$("mapChip").textContent = this._t((this._config || {}).floorplan ? "map_chip" : "areas_chip");
     this._occMore();
   }
 
@@ -2328,6 +2334,9 @@ class FloorConsoleCard extends HTMLElement {
 '.app.compact.page-home .occwrap{display:none}' +
 '.pgchipwrap{display:none;flex:none;position:relative;height:0;z-index:3}' +
 '.pgchip{position:absolute;left:50%;top:0;transform:translateX(-50%);white-space:nowrap;padding:4px 16px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 92%,#000);color:var(--fg);font:inherit;font-size:.74rem;font-weight:600;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.45)}' +
+'.mapchipwrap{display:none;flex:none;justify-content:center}.app.compact:not(.page-home) .mapchipwrap{display:flex}' +
+'.mapchip{padding:3px 14px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 70%,transparent);color:var(--fg-dim);font:inherit;font-size:.72rem;font-weight:600;cursor:pointer}' +
+'.app.pg-out-alerts .mapchipwrap{animation:pgOut .2s ease forwards}.app.pg-in-alerts .mapchipwrap{animation:pgIn .32s cubic-bezier(.2,.8,.2,1)}' +
 '.app.compact.page-home .pgchipwrap{display:block}.app.panel .pgchipwrap{order:-1}' +
 '@keyframes pgIn{from{opacity:0;transform:translateY(var(--pg-in,22px))}to{opacity:1;transform:none}}' +
 '@keyframes pgOut{to{opacity:0;transform:translateY(var(--pg-out,-22px))}}' +
@@ -2430,6 +2439,7 @@ class FloorConsoleCard extends HTMLElement {
 '<div class="panelhead" id="panelHead" hidden><div class="pclock" id="pClock"></div><div class="pdate" id="pDate"></div><div class="people" id="pPeople"></div></div>' +
 '<div class="badges" id="badges"></div>' +
 '<div class="pgchipwrap"><button class="pgchip" id="pgChip"></button></div>' +
+'<div class="mapchipwrap"><button class="mapchip" id="mapChip"></button></div>' +
 '<div class="occwrap" id="occWrap" hidden><div class="occupancylist" id="occupancyList"></div><button class="occmore" id="occMore" hidden></button></div>' +
 '<div class="radialzone"><button class="radialtrigger" id="radialTrigger"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>' + this._t("area_btn") + '</span></button><div class="fp"><div class="fp-map" id="fpMap"></div><button class="fp-all" id="fpAll">' + this._t("all_areas") + '</button></div></div>' +
 '<p class="radialtrigger-hint">' + this._t("hint_pick") + '</p>' +
