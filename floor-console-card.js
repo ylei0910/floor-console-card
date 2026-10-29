@@ -1029,6 +1029,7 @@ class FloorConsoleCard extends HTMLElement {
     var fp = (this._config || {}).floorplan, map = this._$ && this._$("fpMap");
     if (!map) return;
     this._root.querySelector(".radialzone").classList.toggle("has-fp", !!fp);
+    this._$("fpAll").hidden = !(fp && fp.all_areas);
     if (!fp) { map.innerHTML = ""; this._fp = null; return; }
     if (this._fp && this._fp.src === fp) return;
     var r = fccFloorplan(fp);
@@ -2192,7 +2193,7 @@ class FloorConsoleCard extends HTMLElement {
 '.radialzone.has-fp .fp{display:block}' +
 '.fp-map{position:relative;width:100%;border-radius:16px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}' +
 '.fp-svg{position:absolute;inset:0;width:100%;height:100%;display:block}' +
-'.fp-all{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.7rem;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}' +
+'.fp-all[hidden]{display:none}.fp-all{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.7rem;font-weight:600;color:var(--fg);background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}' +
 '.fp .f-wf{fill:var(--fp-wall-face);stroke:var(--fp-wall-face);stroke-width:.6}.fp .f-ws{fill:var(--fp-wall-side);stroke:var(--fp-wall-side);stroke-width:.6}' +
 '.fp .f-wt{fill:var(--fp-wall);stroke:var(--fp-wall);stroke-width:.6;stroke-linejoin:round}' +
 '.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +

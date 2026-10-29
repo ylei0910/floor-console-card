@@ -100,7 +100,7 @@ Icons: `i-bulb i-fan i-ac i-curtain i-tv i-door i-gate i-car i-sofa i-bed i-book
 
 ## Floor plan
 
-`floorplan` draws your floor as an oblique 3D plan in place of the area button. Floors stay square while walls stand up; the upper storey is raised by `storey` above rooms marked `ground: true`. Tapping any room opens its area's sheet (no back arrow); a small "All areas" chip still opens the list. Each area shows its icon at the centre of its rooms, with corner dots for what's running besides lights (fan top-left, air-con top-right, TV / appliance bottom-left, curtain open bottom-right). A room glows while one of its lights is on: `lights` maps a light to a room, and unmapped lights light the area's first listed room.
+`floorplan` draws your floor as an oblique 3D plan in place of the area button. Floors stay square while walls stand up; the upper storey is raised by `storey` above rooms marked `ground: true`. Tapping any room opens its area's sheet (no back arrow); `all_areas: true` adds a small "All areas" chip that opens the area list. Each area shows its icon at the centre of its rooms, with corner dots for what's running besides lights (fan top-left, air-con top-right, TV / appliance bottom-left, curtain open bottom-right). A room glows while one of its lights is on: `lights` maps a light to a room, and unmapped lights light the area's first listed room.
 
 Coordinates are plan units at any scale; `view` is the visible box `[x, y, w, h]`.
 
