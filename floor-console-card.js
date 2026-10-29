@@ -369,7 +369,7 @@ function fccFloorplan(fp) {
     var s = '<g class="f-rm" data-room="' + esc(r.id) + '">' + P("f-fl f-" + (r.floor || "room"), r.points);
     (r.patches || []).forEach(function (pa) { s += P("f-" + (pa.fill || "grass"), pa.points); });
     if (r.stairs) s += stairs(r);
-    s += P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
+    var glow = P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
     // colour accent: an RGB light in colour mode glows as a soft edge along the walls
     // band width follows the room's narrow side, so a small room keeps its white centre
     var xs = r.points.map(function (q) { return q[0]; }), ys = r.points.map(function (q) { return q[1]; });
@@ -377,7 +377,8 @@ function fccFloorplan(fp) {
     // layered strokes (vector, no blur raster) fade from the wall into the room
     var layers = "";
     for (var i = 0; i < 14; i++) layers += P("", r.points, ' style="stroke-width:' + (2 * bw * (1 - i / 14)).toFixed(1) + '"');
-    return s + '<g class="f-accent" clip-path="url(#fpC-' + safe(r.id) + ')">' + layers + "</g></g>";
+    // drawn under the white glow, so a white light still reads on top of a strip
+    return s + '<g class="f-accent" clip-path="url(#fpC-' + safe(r.id) + ')">' + layers + "</g>" + glow + "</g>";
   }
   var safe = function (id) { return String(id).replace(/[^a-zA-Z0-9_-]/g, "_"); };
   var hit = function (r) { return P("f-hit", r.points, ' data-area="' + esc(r.area) + '"'); };
@@ -1134,7 +1135,8 @@ class FloorConsoleCard extends HTMLElement {
       if (room.accent.w) {
         var acc = g.querySelector(".f-accent");
         acc.style.stroke = "rgb(" + colour(room.accent).join(",") + ")";
-        acc.style.opacity = ((room.white.w ? 0.3 : 0.45) + 0.35 * room.accent.bri).toFixed(2);
+        // with a white light on, the strip is an accent only
+        acc.style.opacity = (room.white.w ? 0.2 + 0.25 * room.accent.bri : 0.3 + 0.25 * room.accent.bri).toFixed(2);
       }
     });
     map.querySelectorAll(".fp-pin").forEach(function (pin) {
@@ -2281,7 +2283,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-verge{fill:var(--fp-verge)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
 '.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
 '.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
-'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-accent{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-accent polygon{fill:none;stroke-linejoin:round;stroke-opacity:.085}.fp .f-rm:not(.acc) .f-accent{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
+'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-accent{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-accent polygon{fill:none;stroke-linejoin:round;stroke-opacity:.06}.fp .f-rm:not(.acc) .f-accent{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
 '.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5}' +
 '.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
