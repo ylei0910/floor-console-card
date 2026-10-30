@@ -1137,11 +1137,12 @@ class FloorConsoleCard extends HTMLElement {
     var on = this._isOn.bind(this), cfg = this._config || {}, h = this._hass, out = { fan: false, ac: false, media: false, curtain: false };
     a.rows.forEach(function (r) {
       if (r.curtain) { if (r.entities.some(on)) out.curtain = true; return; }
-      if (!r.entity || !on(r.entity)) return;
+      if (!r.entity || r.gate || !on(r.entity)) return;
       var d = r.entity.split(".")[0];
       if (d === "fan") out.fan = true;
       else if (d === "climate") out.ac = true;
-      else if (d === "media_player") out.media = true;
+      // media and any other appliance (a switched cooker, the vacuum) share one dot
+      else if (d === "media_player" || d === "switch" || d === "vacuum") out.media = true;
     });
     if (this._applianceRows(a.id).some(function (r) { return this._applianceActive(cfg.appliances[r.appliance]); }.bind(this))) out.media = true;
     return out;
