@@ -762,6 +762,10 @@ class FloorConsoleCard extends HTMLElement {
     ["pointerdown", "touchstart", "keydown"].forEach(function (ev) { this.addEventListener(ev, this._idleFn, { capture: true, passive: true }); }.bind(this));
     this._idleReset();
     this._hideHeader();
+    // alert live views that came up while the card was off screen
+    if (this._root) this._root.querySelectorAll(".occcam").forEach(function (slot) {
+      if (slot._fccCam) { var cam = slot._fccCam; slot._fccCam = null; this._mountOccCam(slot, cam); }
+    }.bind(this));
   }
   disconnectedCallback() {
     if (this._fitRO) { this._fitRO.disconnect(); this._fitEl = null; }
@@ -2224,7 +2228,11 @@ class FloorConsoleCard extends HTMLElement {
     var self = this;
     slot.style.aspectRatio = this._ratio(cam);
     window.loadCardHelpers().then(function (helpers) {
-      if (!slot.isConnected) return;
+      // card off screen (another dashboard tab open, or not attached yet at
+      // start-up): mount the live view when it is shown (connectedCallback)
+      if (slot._fccMounted) return;
+      if (!slot.isConnected) { slot._fccCam = cam; return; }
+      slot._fccCam = null; slot._fccMounted = true;
       var embed = self._camEmbed(cam);
       var el = helpers.createCardElement(embed);
       el.hass = self._hass;
