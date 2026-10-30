@@ -296,21 +296,45 @@ function fccFloorplan(fp) {
       seen[k] = 1;
       items.push({ a: a, b: b, h: h, t: t, layer: layer, y: Math.max(a[1], b[1]), hz: Math.abs(a[0] - b[0]) > Math.abs(a[1] - b[1]) ? 1 : 0 });
     }
+    // another wall of the same height continuing in line from point p
+    function onward(it, p, d) {
+      return items.some(function (o) {
+        if (o === it || o.svg || o.h !== it.h) return false;
+        var at = Math.hypot(o.a[0] - p[0], o.a[1] - p[1]) < 0.5 || Math.hypot(o.b[0] - p[0], o.b[1] - p[1]) < 0.5;
+        var l = Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]);
+        return at && Math.abs(((o.b[0] - o.a[0]) * d[1] - (o.b[1] - o.a[1]) * d[0]) / l) < 0.01;
+      });
+    }
     function block(it) {
       var a = it.a, b = it.b, e = it.t / 2, o = shift(it.h), U = function (q) { return mv(q, o); };
       var len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], n = [-d[1], d[0]];
       // footprint, extended by half a thickness at both ends so corners close
       var A = [a[0] - d[0] * e, a[1] - d[1] * e], B = [b[0] + d[0] * e, b[1] + d[1] * e];
+      if (atPost(a)) A = [a[0] + d[0] * GP, a[1] + d[1] * GP];
+      if (atPost(b)) B = [b[0] - d[0] * GP, b[1] - d[1] * GP];
       var off = function (q, k) { return [q[0] + n[0] * e * k, q[1] + n[1] * e * k]; };
       var q = [off(A, -1), off(B, -1), off(B, 1), off(A, 1)], f = "";
       var face = function (p, r, nn) { f += P(Math.abs(nn[1]) >= Math.abs(nn[0]) ? "f-wf" : "f-ws", [p, r, U(r), U(p)]); };
       if (faces(n)) face(q[3], q[2], n); else face(q[0], q[1], [-n[0], -n[1]]);
-      // thin railings butt into walls: no end faces
-      if (it.t > 3) { if (faces(d)) face(q[1], q[2], d); else face(q[0], q[3], [-d[0], -d[1]]); }
+      // thin railings butt into walls: no end faces; nor where the wall carries straight on
+      if (it.t > 3) { if (faces(d)) { if (!onward(it, b, d)) face(q[1], q[2], d); } else if (!onward(it, a, d)) face(q[0], q[3], [-d[0], -d[1]]); }
       return { f: f, c: P("f-wt", q.map(U)) };
     }
     return {
       add: add, items: items,
+      mitre: function (p, h, t, layer) {
+        h = h || H; t = t || T; p = p.slice();
+        var cut = function (i, j) { var l = Math.hypot(p[j][0] - p[i][0], p[j][1] - p[i][1]); p[i] = [p[i][0] + (p[j][0] - p[i][0]) * GP / l, p[i][1] + (p[j][1] - p[i][1]) * GP / l]; };
+        if (atPost(p[0])) cut(0, 1);
+        if (atPost(p[p.length - 1])) cut(p.length - 1, p.length - 2);
+        var dirs = mitreDirs(p), off = mitreOff(p, dirs, t / 2), U = function (q) { return mv(q, shift(h)); };
+        dirs.forEach(function (d, i) {
+          var a = p[i], b = p[i + 1], n = nrm(d), sd = faces(n) ? "l" : "r", fa = off[i][sd], fb = off[i + 1][sd];
+          items.push({ layer: layer == null ? h : layer, y: Math.max(a[1], b[1]), hz: Math.abs(a[0] - b[0]) > Math.abs(a[1] - b[1]) ? 1 : 0,
+            svg: function () { return P(Math.abs(n[1]) >= Math.abs(n[0]) ? "f-wf" : "f-ws", [fa, fb, U(fb), U(fa)]); },
+            top: P("f-wt", [off[i].l, off[i + 1].l, off[i + 1].r, off[i].r].map(U)) });
+        });
+      },
       line: function (p, h, t, layer, closed) { for (var i = 0; i < p.length - (closed ? 0 : 1); i++) add(p[i], p[(i + 1) % p.length], h, t, layer); },
       draw: function () {
         var layers = [];
@@ -318,7 +342,7 @@ function fccFloorplan(fp) {
         return layers.sort(function (a, b) { return a - b; }).map(function (L) {
           var f = "", c = "";
           items.filter(function (it) { return it.layer === L; }).sort(function (p, q) { return p.y - q.y || p.hz - q.hz; }).forEach(function (it) {
-            var r = it.svg ? { f: it.svg(), c: "" } : block(it);
+            var r = it.svg ? { f: it.svg(), c: it.top || "" } : block(it);
             f += r.f; c += r.c;
           });
           return f + c;
@@ -328,17 +352,21 @@ function fccFloorplan(fp) {
   }
 
   // a polyline wall with mitred joints, so its corners meet as one wall
-  function mitred(p, h, t) {
-    var e = t / 2, o = shift(h), U = function (q) { return mv(q, o); }, out = "";
-    var dirs = p.slice(1).map(function (q, i) { var a = p[i], l = Math.hypot(q[0] - a[0], q[1] - a[1]); return [(q[0] - a[0]) / l, (q[1] - a[1]) / l]; });
-    var nrm = function (d) { return [-d[1], d[0]]; };
-    var off = p.map(function (q, i) {
+  var nrm = function (d) { return [-d[1], d[0]]; };
+  function mitreDirs(p) { return p.slice(1).map(function (q, i) { var a = p[i], l = Math.hypot(q[0] - a[0], q[1] - a[1]); return [(q[0] - a[0]) / l, (q[1] - a[1]) / l]; }); }
+  // both edges of a wall of thickness 2e along polyline p, corners mitred
+  function mitreOff(p, dirs, e) {
+    return p.map(function (q, i) {
       var n = [dirs[i - 1], dirs[i]].filter(Boolean).map(nrm);
       var m = [n.reduce(function (s, v) { return s + v[0]; }, 0) / n.length, n.reduce(function (s, v) { return s + v[1]; }, 0) / n.length];
       var ml = Math.hypot(m[0], m[1]); m = [m[0] / ml, m[1] / ml];
       var k = e / (m[0] * n[0][0] + m[1] * n[0][1]);
       return { l: [q[0] + m[0] * k, q[1] + m[1] * k], r: [q[0] - m[0] * k, q[1] - m[1] * k] };
     });
+  }
+  function mitred(p, h, t) {
+    var e = t / 2, o = shift(h), U = function (q) { return mv(q, o); }, out = "";
+    var dirs = mitreDirs(p), off = mitreOff(p, dirs, e);
     dirs.forEach(function (d, i) {
       var n = nrm(d), s = faces(n) ? "l" : "r", a = off[i][s], b = off[i + 1][s];
       out += P(Math.abs(n[1]) >= Math.abs(n[0]) ? "f-wf" : "f-ws", [a, b, U(b), U(a)]);
@@ -367,6 +395,9 @@ function fccFloorplan(fp) {
 
   function roomSVG(r) {
     var s = '<g class="f-rm" data-room="' + esc(r.id) + '">' + P("f-fl f-" + (r.floor || "room"), r.points);
+    // no area: not part of this floor (e.g. another floor's stair), drawn faded and hatched
+    if (!r.area) return '<g class="f-rm f-na" data-room="' + esc(r.id) + '">' + P("f-fl f-" + (r.floor || "room"), r.points) +
+      (r.stairs ? stairs(r) : "") + P("f-hatch", r.points, ' fill="url(#fpNA)"') + "</g>";
     (r.patches || []).forEach(function (pa) { s += P("f-" + (pa.fill || "grass"), pa.points); });
     if (r.stairs) s += stairs(r);
     var glow = P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
@@ -381,29 +412,43 @@ function fccFloorplan(fp) {
     return s + '<g class="f-accent" clip-path="url(#fpC-' + safe(r.id) + ')">' + layers + "</g>" + glow + "</g>";
   }
   var safe = function (id) { return String(id).replace(/[^a-zA-Z0-9_-]/g, "_"); };
-  var hit = function (r) { return P("f-hit", r.points, ' data-area="' + esc(r.area) + '"'); };
+  // rooms without an area (e.g. a stair that belongs to another floor) are drawn but not tappable
+  var hit = function (r) { return r.area ? P("f-hit", r.points, ' data-area="' + esc(r.area) + '"') : ""; };
 
   // folding gate: closed = panels in a line across the opening; open = folded
   // into a V at each post, sticking out on the `outside` side
+  // returns the near-post half (post a + its panels) and the far-post half
+  // (post b's panels + post b) separately, so each is depth-sorted with the walls
   function gate(g, open) {
-    var a = g.a, b = g.b, h = g.height || 14, n = g.panels || 4, out = "";
+    var a = g.a, b = g.b, h = g.height || 14, n = g.panels || 4, A = "", B = "";
     var panel = function (p0, p1) {
-      out += P("f-gp", [p0, p1, mv(p1, shift(h)), mv(p0, shift(h))]);
-      for (var i = 1; i < 5; i++) { var o = shift(h * i / 5); out += Ln("f-gs", mv(p0, o), mv(p1, o)); }
+      var s = P("f-gp", [p0, p1, mv(p1, shift(h)), mv(p0, shift(h))]);
+      for (var i = 1; i < 5; i++) { var o = shift(h * i / 5); s += Ln("f-gs", mv(p0, o), mv(p1, o)); }
+      return s;
     };
-    out += box(a, 4.5, (g.wall || h) + 3);
+    A += box(a, GP, (g.wall || h) + 3);
     var len = Math.hypot(b[0] - a[0], b[1] - a[1]) / n;
     if (!open) {
-      for (var i = 0; i < n; i++) panel([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n]);
+      for (var i = 0; i < n; i++) A += panel([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n]);
     } else {
-      var sx = g.outside === "right" ? 1 : -1;
+      var sx = g.outside === "right" ? 1 : -1, ux = (b[0] - a[0]) / (len * n), uy = (b[1] - a[1]) / (len * n);
       [[a, 1], [b, -1]].forEach(function (hd) {
-        var hinge = hd[0], dir = hd[1] * (b[1] >= a[1] ? 1 : -1);
+        // hinged at the face of the post, not its centre, so the panels meet the post cleanly
+        var hinge = [hd[0][0] + hd[1] * ux * GP, hd[0][1] + hd[1] * uy * GP], dir = hd[1] * (b[1] >= a[1] ? 1 : -1);
         var fold = [hinge[0] + sx * len * 0.97, hinge[1] + dir * len * 0.24], back = [hinge[0], hinge[1] + dir * len * 0.48];
-        if (hd[1] > 0) { panel(hinge, fold); panel(fold, back); } else { panel(fold, back); panel(hinge, fold); }
+        if (hd[1] > 0) A += panel(hinge, fold) + panel(fold, back); else B += panel(fold, back) + panel(hinge, fold);
       });
     }
-    return out + box(b, 4.5, (g.wall || h) + 3);
+    return { a: A, b: B + box(b, GP, (g.wall || h) + 3) };
+  }
+  var GP = 4.5, POSTS = fp.gate ? [fp.gate.a, fp.gate.b] : [];
+  var atPost = function (q) { return POSTS.some(function (p) { return Math.hypot(p[0] - q[0], p[1] - q[1]) < 1; }); };
+  // the gate as two items in a wall list, so walls in front of a post are drawn over it
+  function addGate(wl) {
+    var g = fp.gate, c = gate(g, false), o = gate(g, true), L = (g.wall || g.height || 14);
+    var wrap = function (k) { return '<g class="f-gate f-gate-closed">' + c[k] + '</g><g class="f-gate f-gate-open">' + o[k] + "</g>"; };
+    wl.items.push({ layer: L, y: g.a[1] + GP, hz: 0, svg: function () { return ""; }, top: wrap("a") });
+    wl.items.push({ layer: L, y: g.b[1] + GP, hz: 0, svg: function () { return ""; }, top: wrap("b") });
   }
 
   // ground level
@@ -421,8 +466,10 @@ function fccFloorplan(fp) {
     if (w.mitre) gr += mitred(w.points, w.height || 8, w.thickness || 5);
     else gw.line(w.points, w.height || 8, w.thickness || 5, w.layer, w.closed);
   });
+  // single-level plan: the site wall is drawn with the house walls, so the gate goes in with them
+  var flat = !fp.storey;
+  if (fp.gate && !flat) addGate(gw);
   gr += gw.draw();
-  if (fp.gate) gr += '<g class="f-gate f-gate-closed">' + gate(fp.gate, false) + '</g><g class="f-gate f-gate-open">' + gate(fp.gate, true) + "</g>";
   rooms.filter(function (r) { return r.ground; }).forEach(function (r) { gr += hit(r); });
 
   // the storey below the upper floor: faces of the house block, posts
@@ -456,7 +503,7 @@ function fccFloorplan(fp) {
   });
   var uw = walls();
   rooms.filter(function (r) { return !r.ground && r.walls; }).forEach(function (r) { uw.line(r.points, H, T, null, true); });
-  (fp.walls || []).forEach(function (w) { uw.line(w.points, w.height, w.thickness, w.layer, w.closed); });
+  (fp.walls || []).forEach(function (w) { if (w.mitre) uw.mitre(w.points, w.height, w.thickness, w.layer); else uw.line(w.points, w.height, w.thickness, w.layer, w.closed); });
   (fp.furniture || []).forEach(function (f) {
     var x0 = f.points[0], y0 = f.points[1], x1 = f.points[2], y1 = f.points[3];
     uw.items.push({ layer: H, y: y1, hz: 0, svg: function () {
@@ -467,6 +514,7 @@ function fccFloorplan(fp) {
       return s;
     } });
   });
+  if (fp.gate && flat) addGate(uw);
   up += uw.draw();
   rooms.filter(function (r) { return !r.ground; }).forEach(function (r) { up += hit(r); });
 
@@ -511,6 +559,7 @@ function fccFloorplan(fp) {
       return '<radialGradient id="fpG-' + safe(r.id) + '" cx="50%" cy="55%" r="65%"><stop offset="0" style="stop-color:' + c + ';stop-opacity:.6"/><stop offset=".6" style="stop-color:' + c + ';stop-opacity:.22"/><stop offset="1" style="stop-color:' + c + ';stop-opacity:0"/></radialGradient>';
     }).join("") + rooms.map(function (r) { return '<clipPath id="fpC-' + safe(r.id) + '">' + P("", r.points) + "</clipPath>"; }).join("") +
     '<filter id="fpSoft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>' +
+    '<pattern id="fpNA" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="f-hl" x1="0" y1="0" x2="0" y2="9"/></pattern>' +
     (fp.site ? '<clipPath id="fpClip">' + P("", fp.site) + "</clipPath>" : "") + "</defs>" +
     "<g>" + gr + "</g><g>" + bk + '</g><g transform="translate(' + LIFT[0] + " " + LIFT[1] + ')">' + up + "</g></svg>";
   return { svg: svg, view: vb, pins: pins };
@@ -2307,6 +2356,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
 '.fp .f-cupt{fill:var(--fp-cup-top);stroke:var(--fp-cup-side);stroke-width:.8}.fp .f-cupf{fill:var(--fp-cup-face)}.fp .f-cups{fill:var(--fp-cup-side)}.fp .f-cupl{stroke:var(--fp-cup-side);stroke-width:1}' +
+'.fp .f-na{opacity:.4}.fp .f-hl{stroke:var(--fp-line);stroke-width:2.5}' +
 '.fp .f-hit{fill:transparent;cursor:pointer;transition:fill .2s}.fp .f-hit:active{fill:color-mix(in srgb,var(--accent) 18%,transparent)}' +
 '.fp-pins{position:absolute;inset:0;z-index:1;pointer-events:none}' +
 '.fp-pin{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:transform .15s,box-shadow .3s,border-color .3s}' +
