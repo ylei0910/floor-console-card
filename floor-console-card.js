@@ -603,8 +603,8 @@ function fccGlowTint(rgb, dark) {
   return rgb.map(function (v) { return Math.max(0, Math.round(255 - (255 - v) * k)); });
 }
 
-var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900" };
-var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e" };
+var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900", "fp-play": "#14a39a" };
+var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e", "fp-play": "#3cc9bf" };
 
 class FloorConsoleCard extends HTMLElement {
   setConfig(config) {
@@ -1134,20 +1134,22 @@ class FloorConsoleCard extends HTMLElement {
 
   // what's running in an area besides its lights (the map's corner dots, the area list's dot)
   _areaRunning(a) {
-    var on = this._isOn.bind(this), cfg = this._config || {}, h = this._hass, out = { fan: false, ac: false, media: false, curtain: false };
+    var on = this._isOn.bind(this), cfg = this._config || {}, h = this._hass, out = { fan: false, ac: false, media: false, curtain: false, play: false };
     a.rows.forEach(function (r) {
       if (r.curtain) { if (r.entities.some(on)) out.curtain = true; return; }
       if (!r.entity || r.gate || !on(r.entity)) return;
       var d = r.entity.split(".")[0];
       if (d === "fan") out.fan = true;
       else if (d === "climate") out.ac = true;
-      // media and any other appliance (a switched cooker, the vacuum) share one dot
-      else if (d === "media_player" || d === "switch" || d === "vacuum") out.media = true;
+      // media playing breathes a ring round the icon; the bottom-left dot is for
+      // appliances (a switched cooker, the vacuum, the washer below)
+      else if (d === "media_player") out.play = true;
+      else if (d === "switch" || d === "vacuum") out.media = true;
     });
     if (this._applianceRows(a.id).some(function (r) { return this._applianceActive(cfg.appliances[r.appliance]); }.bind(this))) out.media = true;
     return out;
   }
-  _areaLive(a) { var r = this._areaRunning(a); return r.fan || r.ac || r.media || r.curtain; }
+  _areaLive(a) { var r = this._areaRunning(a); return r.fan || r.ac || r.media || r.curtain || r.play; }
 
   // ---- floor plan ---------------------------------------------------------
   _fpMount() {
@@ -1163,6 +1165,14 @@ class FloorConsoleCard extends HTMLElement {
     // tap_radius: only a circle of that many px around each icon is tappable, not the whole room
     map.classList.toggle("pin-only", fp.tap_radius > 0);
     map.style.setProperty("--fp-tap", (fp.tap_radius > 14 ? fp.tap_radius - 14 : 0) + "px");
+    // the media ring switches on / off when a breath ends (it is invisible then), not mid-breath
+    if (!map._fccBreath) {
+      map._fccBreath = true;
+      map.addEventListener("animationiteration", function (e) {
+        var pin = e.target;
+        if (e.pseudoElement === "::after" && pin.classList && pin.classList.contains("fp-pin")) pin.classList.toggle("run-play", !!pin._play);
+      });
+    }
     map.innerHTML = r.svg + '<div class="fp-pins">' + r.pins.map(function (p) {
       return '<button class="fp-pin" data-area="' + p.area + '" style="left:' + (p.x * 100).toFixed(2) + '%;top:' + (p.y * 100).toFixed(2) + '%"><span class="fp-ic"></span>' +
         '<i class="fp-d fp-d-fan"></i><i class="fp-d fp-d-ac"></i><i class="fp-d fp-d-media"></i><i class="fp-d fp-d-curtain"></i></button>';
@@ -1214,7 +1224,10 @@ class FloorConsoleCard extends HTMLElement {
       if (!a) return;
       if (pin.getAttribute("data-icon") !== a.icon) { pin.setAttribute("data-icon", a.icon); pin.querySelector(".fp-ic").innerHTML = self._icon(a.icon); pin.setAttribute("aria-label", a.name); }
       var run = self._areaRunning(a);
-      Object.keys(run).forEach(function (k) { pin.classList.toggle("run-" + k, run[k]); });
+      Object.keys(run).forEach(function (k) { if (k !== "play") pin.classList.toggle("run-" + k, run[k]); });
+      // already playing when the map is drawn, or no breathing (reduced motion): show at once
+      if (pin._play === undefined || window.matchMedia("(prefers-reduced-motion: reduce)").matches) pin.classList.toggle("run-play", run.play);
+      pin._play = run.play;
       var am = rooms.filter(function (r) { return r.area === id && lit[r.id]; }).map(function (r) { var x = lit[r.id]; return x.white.w ? x.white : x.accent; });
       pin.classList.toggle("lit", am.length > 0);
       if (am.length) pin.style.setProperty("--fp-glow", colour(am.reduce(function (s, m) { return { r: s.r + m.r, g: s.g + m.g, b: s.b + m.b, w: s.w + m.w }; }, { r: 0, g: 0, b: 0, w: 0 })).join(","));
@@ -2375,6 +2388,12 @@ class FloorConsoleCard extends HTMLElement {
 '.fp-pin .fp-ic{display:flex}.fp-pin ha-icon{--mdc-icon-size:16px;display:flex}.fp-pin .fp-ic svg{width:16px;height:16px;stroke:currentColor}' +
 '.fp-d{position:absolute;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--surface);box-sizing:border-box;opacity:0;transform:scale(.4);transition:opacity .25s,transform .25s}' +
 '.fp-d-fan{top:-3px;left:-3px;background:var(--fp-fan)}.fp-d-ac{top:-3px;right:-3px;background:var(--fp-ac)}.fp-d-media{bottom:-3px;left:-3px;background:var(--fp-media)}.fp-d-curtain{bottom:-3px;right:-3px;background:var(--fp-curtain)}' +
+// the ring breathes on every pin from when the map is drawn and only shows while
+// playing, so rings that come on at different times still breathe together
+'.fp-pin::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--fp-play);pointer-events:none;animation:fpBreathe 2.4s ease-in-out infinite}' +
+'.fp-pin:not(.run-play)::after{visibility:hidden}' +
+'@keyframes fpBreathe{0%,100%{opacity:0;transform:scale(.92)}50%{opacity:.9;transform:scale(1.08)}}' +
+'@media (prefers-reduced-motion:reduce){.fp-pin::after{animation:none;opacity:.8}}' +
 '.fp-pin.run-fan .fp-d-fan,.fp-pin.run-ac .fp-d-ac,.fp-pin.run-media .fp-d-media,.fp-pin.run-curtain .fp-d-curtain{opacity:1;transform:none}' +
 '.area-cell .icon ha-icon{--mdc-icon-size:24px;color:var(--accent-strong);display:flex}.sheet-head .icon ha-icon{--mdc-icon-size:18px;color:var(--accent-strong);display:flex}' +
 '.radialtrigger-hint{margin-top:10px;font-size:.72rem;color:var(--fg-dim);text-align:center}' +
