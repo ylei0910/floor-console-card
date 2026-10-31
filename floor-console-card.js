@@ -670,16 +670,22 @@ class FloorConsoleCard extends HTMLElement {
       });
       return need + gap * Math.max(0, n - 1) + gapPx;
     };
+    // 0) a floor plan shrinks (keeping its shape, centred) down to 140 px tall to
+    // fit the page it is shown on: with alerts up that is the map page (alerts
+    // chip, no alert cards), so the alerts never squeeze the map, they push it
+    // to its own page
+    var alerts = !this._$("occWrap").hidden;
+    if (alerts) app.classList.add("compact", "page-home");
     var over = measure() - H;
-    // 0) a floor plan first shrinks (keeping its shape, centred) down to 140 px tall
     if (over > 0 && fpMap && fpMap.offsetHeight) {
       var natural = fpMap.offsetHeight, target = Math.max(140, natural - over);
       if (target < natural) {
         fpMap.style.height = target + "px";
         fpMap.style.width = (target * this._fp.ratio).toFixed(1) + "px";
-        over = measure() - H;
       }
     }
+    if (alerts) app.classList.remove("compact", "page-home");
+    over = measure() - H;
     if (over > 0) {
       // 1) hide the area button (+ clock in the panel layout)
       app.classList.add("compact");
