@@ -1147,9 +1147,9 @@ class FloorConsoleCard extends HTMLElement {
       var d = r.entity.split(".")[0];
       if (d === "fan") out.fan = true;
       else if (d === "climate") out.ac = true;
-      // media playing breathes a ring round the icon; the bottom-left dot is for
-      // appliances (a switched cooker, the vacuum, the washer below)
-      else if (d === "media_player") out.play = true;
+      // media playing (not just on or paused) breathes a ring round the icon; the
+      // bottom-left dot is for appliances (a switched cooker, the vacuum, the washer below)
+      else if (d === "media_player") { if (h.states[r.entity].state === "playing") out.play = true; }
       else if (d === "switch" || d === "vacuum") out.media = true;
     });
     if (this._applianceRows(a.id).some(function (r) { return this._applianceActive(cfg.appliances[r.appliance]); }.bind(this))) out.media = true;
