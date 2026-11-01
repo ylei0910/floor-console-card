@@ -1020,6 +1020,15 @@ class FloorConsoleCard extends HTMLElement {
     return cfg.floor_attr || (fl ? ["", "first_floor", "second_floor", "third_floor", "fourth_floor"][fl.level] : "") || "second_floor";
   }
 
+  // entity ids a *_on sensor lists for this floor, plus its `common` attribute
+  // (entities with no floor, e.g. the garage) unless include_common is false
+  _floorIds(st) {
+    var a = (st && st.attributes) || {}, cfg = this._config || {};
+    var ids = (a[this._floorAttr()] || []).slice();
+    if (cfg.include_common !== false) (a.common || []).forEach(function (id) { if (ids.indexOf(id) === -1) ids.push(id); });
+    return ids;
+  }
+
   _gateRow() {
     var found = null;
     this._AREAS.some(function (a) { return a.rows.some(function (r) { if (r.gate) { found = r; return true; } }); });
@@ -1376,7 +1385,7 @@ class FloorConsoleCard extends HTMLElement {
     // anything unmatched (shouldn't normally happen, curated list) falls
     // into a catch-all "其他" section rather than being silently dropped.
     var st = this._hass.states[sensorId];
-    var ids = (st && st.attributes && st.attributes[this._floorAttr()]) || [];
+    var ids = this._floorIds(st);
     this._openSheet({ name: title, icon: icon, status: this._t("n_devices", { n: ids.length }), rows: [] });
     var body = this._$("sheetBody");
     var areas = this._AREAS;
@@ -2014,7 +2023,6 @@ class FloorConsoleCard extends HTMLElement {
 
     // badges
     var cfg = this._config || {};
-    var attr = this._floorAttr();
     var weather = cfg.weather ? h.states[cfg.weather] : null;
     var temp = weather && weather.attributes ? weather.attributes.temperature : "--";
     var wst = weather ? weather.state : "";
@@ -2030,7 +2038,7 @@ class FloorConsoleCard extends HTMLElement {
     if (weather) out.push('<span class="badge badge-static" style="--tone:var(--info)">' + this._icon("i-moon") + '<span>' + temp + '° ' + condLabel + '</span></span>');
     (cfg.badges || []).forEach(function (b) {
       var st = h.states[b.sensor];
-      var n = st && st.attributes && st.attributes[attr] ? st.attributes[attr].length : 0;
+      var n = this._floorIds(st).length;
       if (n > 0) out.push(this._badgeHTML("--on", b.icon, b.label, n, b.sensor));
     }.bind(this));
     if (cfg.vacuum) {
