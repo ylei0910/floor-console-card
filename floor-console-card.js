@@ -1064,8 +1064,8 @@ class FloorConsoleCard extends HTMLElement {
       if (o.gate) { rows.push({ icon: o.icon || "i-gate", label: nameOf(id), gate: true, entity: id, cam: o.cam, trigger: o.trigger }); return; }
       if (d === "camera") { rows.push({ icon: "i-cctv", label: nameOf(id), sub: self._t("tap_view"), camera: id }); return; }
       // exhaust fan (a switch): breathing rings drawn inwards while it runs
-      if (o.kind === "exhaust") { rows.push({ icon: o.icon || "i-exhaust", exhaust: true, label: nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._t("exhaust"), entity: id }); return; }
-      rows.push({ icon: o.icon || self._iconFor(id, d, cfg), label: nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._subFor(id, d), entity: id });
+      if (o.kind === "exhaust") { rows.push({ icon: o.icon || "i-exhaust", exhaust: true, section: o.section, label: o.label || nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._t("exhaust"), entity: id }); return; }
+      rows.push({ icon: o.icon || self._iconFor(id, d, cfg), section: o.section, label: o.label || nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._subFor(id, d), entity: id });
     });
     ["curtain", "sheer"].forEach(function (k) {
       if (curt[k].length) rows.push({ curtain: true, kind: self._t(k), icon: "i-curtain", entities: curt[k] });
@@ -1648,7 +1648,36 @@ class FloorConsoleCard extends HTMLElement {
     if (masterRows.length || curtainRows.length) html += '<div class="master-bar">' + masterRows.concat(curtainRows).map(this._rowHTML.bind(this)).join("") + '</div>';
     if (devRows.length) html += '<div class="dev-bar" style="--dev-cols:' + (a.devCols || 3) + '">' + devRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     if (applRows.length) html += '<div class="dev-bar appl-bar">' + applRows.map(this._rowHTML.bind(this)).join("") + '</div>';
-    html += plainRows.map(this._rowHTML.bind(this)).join("");
+    if (a.pullout && plainRows.length) {
+      // an area sheet lists its rows under small headings, two per line, like the
+      // badge lists: the area's own name for its main rows, then one heading per
+      // `section` (a toilet, a balcony). Gate and expandable rows take a line each.
+      var secs = [{ name: a.name, rows: [] }], bySec = {};
+      plainRows.forEach(function (r) {
+        if (!r.section) { secs[0].rows.push(r); return; }
+        var sec = bySec[r.section];
+        if (!sec) { sec = bySec[r.section] = { name: r.section, rows: [] }; secs.push(sec); }
+        sec.rows.push(r);
+      });
+      var wide = function (r) { return r.gate || r.cgroup; };
+      var paired = plainRows.some(function (r, i) { return !wide(r) && plainRows.some(function (q, j) { return j !== i && !wide(q) && (q.section || "") === (r.section || ""); }); });
+      var self3 = this;
+      // headings only tell groups apart, so an area with a single group has none
+      var heads = secs.filter(function (x) { return x.rows.length; }).length > 1;
+      secs.forEach(function (x) {
+        if (!x.rows.length) return;
+        var lines = [], pend = null;
+        x.rows.forEach(function (r) {
+          if (wide(r)) { if (pend) { lines.push([pend]); pend = null; } lines.push([r, true]); return; }
+          if (pend) { lines.push([pend, r]); pend = null; } else pend = r;
+        });
+        if (pend) lines.push([pend]);
+        html += (heads ? '<div class="row-section-label">' + x.name + '</div>' : "") + lines.map(function (l) {
+          var solo = l[1] === true || (!paired && l.length === 1);
+          return '<div class="row-line' + (solo ? " solo" : "") + '">' + self3._rowHTML(l[0]) + (l[1] && l[1] !== true ? self3._rowHTML(l[1]) : "") + '</div>';
+        }).join("");
+      });
+    } else html += plainRows.map(this._rowHTML.bind(this)).join("");
     if (camRows.length) html += '<div class="cam-bar">' + camRows.map(this._rowHTML.bind(this)).join("") + '</div>';
     $("sheetBody").innerHTML = html;
     this._wireRows($("sheetBody"));
