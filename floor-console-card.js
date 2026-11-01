@@ -28,6 +28,7 @@ var FCC_I18N = {
     "all_off": "全部关闭",
     "all_off_confirm": "再点一次确认关闭",
     "all_fans": "全部风扇",
+    "exhaust": "抽风",
     "all_ac": "全部空调",
     "on": "开启",
     "off": "关闭",
@@ -152,6 +153,7 @@ var FCC_I18N = {
     "all_off": "Turn all off",
     "all_off_confirm": "Tap again to confirm",
     "all_fans": "All fans",
+    "exhaust": "Extract",
     "all_ac": "All A/C",
     "on": "On",
     "off": "Off",
@@ -603,8 +605,8 @@ function fccGlowTint(rgb, dark) {
   return rgb.map(function (v) { return Math.max(0, Math.round(255 - (255 - v) * k)); });
 }
 
-var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900", "fp-play": "#14a39a" };
-var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e", "fp-play": "#3cc9bf" };
+var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-exh": "#1fa5d6", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900", "fp-play": "#14a39a" };
+var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-exh": "#6fcff0", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e", "fp-play": "#3cc9bf" };
 
 class FloorConsoleCard extends HTMLElement {
   setConfig(config) {
@@ -1036,7 +1038,7 @@ class FloorConsoleCard extends HTMLElement {
       return n;
     };
     list.sort(function (a, b) {
-      var da = (ents[a] || {}).gate ? 0.5 : rank[a.split(".")[0]], db = (ents[b] || {}).gate ? 0.5 : rank[b.split(".")[0]];
+      var da = (ents[a] || {}).gate ? 0.5 : (ents[a] || {}).kind === "exhaust" ? 0.6 : rank[a.split(".")[0]], db = (ents[b] || {}).gate ? 0.5 : (ents[b] || {}).kind === "exhaust" ? 0.6 : rank[b.split(".")[0]];
       if (da == null) da = 9;
       if (db == null) db = 9;
       if (da !== db) return da - db;
@@ -1057,6 +1059,8 @@ class FloorConsoleCard extends HTMLElement {
       }
       if (o.gate) { rows.push({ icon: o.icon || "i-gate", label: nameOf(id), gate: true, entity: id, cam: o.cam, trigger: o.trigger }); return; }
       if (d === "camera") { rows.push({ icon: "i-cctv", label: nameOf(id), sub: self._t("tap_view"), camera: id }); return; }
+      // exhaust fan (a switch): breathing rings drawn inwards while it runs
+      if (o.kind === "exhaust") { rows.push({ icon: o.icon || "i-exhaust", exhaust: true, label: nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._t("exhaust"), entity: id }); return; }
       rows.push({ icon: o.icon || self._iconFor(id, d, cfg), label: nameOf(id), fullLabel: fullOf(id), sub: o.sub != null ? o.sub : self._subFor(id, d), entity: id });
     });
     ["curtain", "sheer"].forEach(function (k) {
@@ -1140,11 +1144,12 @@ class FloorConsoleCard extends HTMLElement {
 
   // what's running in an area besides its lights (the map's corner dots, the area list's dot)
   _areaRunning(a) {
-    var on = this._isOn.bind(this), cfg = this._config || {}, h = this._hass, out = { fan: false, ac: false, media: false, curtain: false, play: false };
+    var on = this._isOn.bind(this), cfg = this._config || {}, h = this._hass, out = { fan: false, ac: false, media: false, curtain: false, play: false, exh: false };
     a.rows.forEach(function (r) {
       if (r.curtain) { if (r.entities.some(on)) out.curtain = true; return; }
       if (!r.entity || r.gate || !on(r.entity)) return;
       var d = r.entity.split(".")[0];
+      if (r.exhaust) { out.exh = true; return; }
       if (d === "fan") out.fan = true;
       else if (d === "climate") out.ac = true;
       // media playing (not just on or paused) breathes a ring round the icon; the
@@ -1155,7 +1160,7 @@ class FloorConsoleCard extends HTMLElement {
     if (this._applianceRows(a.id).some(function (r) { return this._applianceActive(cfg.appliances[r.appliance]); }.bind(this))) out.media = true;
     return out;
   }
-  _areaLive(a) { var r = this._areaRunning(a); return r.fan || r.ac || r.media || r.curtain || r.play; }
+  _areaLive(a) { var r = this._areaRunning(a); return r.fan || r.ac || r.media || r.curtain || r.play || r.exh; }
 
   // ---- floor plan ---------------------------------------------------------
   _fpMount() {
@@ -1180,7 +1185,7 @@ class FloorConsoleCard extends HTMLElement {
       });
     }
     map.innerHTML = r.svg + '<div class="fp-pins">' + r.pins.map(function (p) {
-      return '<button class="fp-pin" data-area="' + p.area + '" style="left:' + (p.x * 100).toFixed(2) + '%;top:' + (p.y * 100).toFixed(2) + '%"><span class="fp-ic"></span>' +
+      return '<button class="fp-pin" data-area="' + p.area + '" style="left:' + (p.x * 100).toFixed(2) + '%;top:' + (p.y * 100).toFixed(2) + '%"><span class="fp-ic"></span><i class="fp-exh"></i>' +
         '<i class="fp-d fp-d-fan"></i><i class="fp-d fp-d-ac"></i><i class="fp-d fp-d-media"></i><i class="fp-d fp-d-curtain"></i></button>';
     }).join("") + "</div>";
     if (this._hass) this._fpRender();
@@ -1475,7 +1480,7 @@ class FloorConsoleCard extends HTMLElement {
         '<div class="rlabel"><b>' + r.label + '</b><span class="gs">' + this._t(on ? "gate_on" : "gate_off") + '</span></div>' +
         '<button class="gate-btn">' + this._icon("i-power") + '<span class="gl">' + this._t(on ? "gate_btn_on" : "gate_btn_off") + '</span></button></div>';
     }
-    return '<div class="row' + (on ? " on" : "") + '" data-entity="' + r.entity + '"><div class="ricon">' + this._icon(r.icon) + '</div>' +
+    return '<div class="row' + (on ? " on" : "") + '" data-entity="' + r.entity + '"><div class="ricon' + (r.exhaust ? " exh" : "") + '">' + this._icon(r.icon) + '</div>' +
       '<div class="rlabel"><b>' + r.label + '</b><span>' + r.sub + '</span></div>' +
       '<ha-switch></ha-switch></div>';
   }
@@ -2398,6 +2403,13 @@ class FloorConsoleCard extends HTMLElement {
 // playing, so rings that come on at different times still breathe together
 '.fp-pin::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--fp-play);pointer-events:none;animation:fpBreathe 2.4s ease-in-out infinite}' +
 '.fp-pin:not(.run-play)::after{visibility:hidden}' +
+// exhaust fan: two rings contract into the icon, offset so the pull never stops
+'.fp-exh{position:absolute;inset:-5px;border-radius:50%;pointer-events:none;visibility:hidden}.fp-pin.run-exh .fp-exh{visibility:visible}' +
+'.fp-exh::before,.fp-exh::after,.ricon.exh::before,.ricon.exh::after{content:"";position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--fp-exh,#1fa5d6);opacity:0;pointer-events:none;animation:fccExh 2s ease-in infinite}' +
+'.fp-exh::after,.ricon.exh::after{animation-delay:1s}' +
+'.row .ricon.exh{position:relative;overflow:hidden}.row:not(.on) .ricon.exh::before,.row:not(.on) .ricon.exh::after{display:none}.row.on .ricon.exh svg{stroke:var(--fp-exh,#1fa5d6)}.row.on .ricon.exh{background:color-mix(in srgb,var(--fp-exh,#1fa5d6) 16%,transparent)}' +
+'@keyframes fccExh{0%{opacity:0;transform:scale(1.15)}25%{opacity:.85}100%{opacity:0;transform:scale(.3)}}' +
+'@media (prefers-reduced-motion:reduce){.fp-exh::before,.ricon.exh::before{animation:none;opacity:.6;transform:scale(.7)}.fp-exh::after,.ricon.exh::after{display:none}}' +
 '@keyframes fpBreathe{0%,100%{opacity:0;transform:scale(.92)}50%{opacity:.9;transform:scale(1.08)}}' +
 '@media (prefers-reduced-motion:reduce){.fp-pin::after{animation:none;opacity:.8}}' +
 '.fp-pin.run-fan .fp-d-fan,.fp-pin.run-ac .fp-d-ac,.fp-pin.run-media .fp-d-media,.fp-pin.run-curtain .fp-d-curtain{opacity:1;transform:none}' +
@@ -2651,6 +2663,7 @@ class FloorConsoleCard extends HTMLElement {
 '<g id="i-gate" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V7l9-4 9 4v14"/><path d="M3 21h18"/><path d="M9 21v-7h6v7"/></g>' +
 '<g id="i-shield" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/></g>' +
 '<g id="i-vacuum" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><circle cx="12" cy="13" r="2"/><path d="M12 6V3"/></g>' +
+'<g id="i-exhaust" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="12" r="6" stroke-dasharray="3 2.4"/><path d="M12 2.5v3M12 21.5v-3M2.5 12h3M21.5 12h-3"/></g>' +
 '<g id="i-fan" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.4"/><path d="M12 10.6C10 8 8.5 5.5 10 3.5 11.5 1.5 14 3 12 10.6zM13.4 12C16 10 18.5 8.5 20.5 10 22.5 11.5 21 14 13.4 12zM12 13.4C14 16 15.5 18.5 14 20.5 12.5 22.5 10 21 12 13.4zM10.6 12C8 14 5.5 15.5 3.5 14 1.5 12.5 3 10 10.6 12z"/></g>' +
 '<g id="i-tree" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-6"/><path d="M12 15c-4 0-6-2.5-6-5.5S8.5 4 12 3c3.5 1 6 3.5 6 6.5S16 15 12 15z"/></g>' +
 '<g id="i-tv" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></g>' +
