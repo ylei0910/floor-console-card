@@ -653,6 +653,9 @@ class FloorConsoleCard extends HTMLElement {
     }
     if (!app.clientHeight) return;
     var H = app.clientHeight, gapPx = (this._config || {}).min_gap != null ? this._config.min_gap : 12;
+    // measuring below briefly lets the page grow, which stretches an open sheet
+    // until nothing scrolls and the browser clamps its scroll to 0: remember it
+    var sbody = this._$("sheetBody"), sbTop = sbody ? sbody.scrollTop : 0;
     var list = this._$("occupancyList"), top = list.scrollTop, cams = Array.prototype.slice.call(list.querySelectorAll(".occcard:not(.leaving) .occcam"));
     var cs = getComputedStyle(app), gap = parseFloat(cs.rowGap) || 0, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     // everything shown at its natural size, as if there were no limits
@@ -710,6 +713,7 @@ class FloorConsoleCard extends HTMLElement {
     if (app.classList.contains("compact")) { if (this._page === "home") app.classList.add("page-home"); }
     else { this._page = "alerts"; clearTimeout(this._pgTimer); }
     list.scrollTop = top;
+    if (sbody && sbTop && sbody.scrollTop !== sbTop) sbody.scrollTop = sbTop;
     this._occMore();
   }
 
