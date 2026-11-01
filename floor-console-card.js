@@ -92,6 +92,7 @@ var FCC_I18N = {
     "power": "电源",
     "sleep": "睡眠模式",
     "tap_toggle": "点击切换",
+    "sleep_confirm": "再点确认",
     "security": "安防",
     "hold_open": "按住开启",
     "visitor_bar": "有访客按门铃",
@@ -217,6 +218,7 @@ var FCC_I18N = {
     "power": "Power",
     "sleep": "Sleep mode",
     "tap_toggle": "Tap to toggle",
+    "sleep_confirm": "Tap again to confirm",
     "security": "Security",
     "hold_open": "Hold to open",
     "visitor_bar": "Someone rang the doorbell",
@@ -904,9 +906,30 @@ class FloorConsoleCard extends HTMLElement {
       l.scrollBy({ top: Math.max(60, l.clientHeight * 0.8), behavior: "smooth" });
     });
     $("powerBtn").addEventListener("click", this._openPowerSheet.bind(this));
-    $("sleepBtn").addEventListener("click", function () {
-      var sl = (this._config || {}).sleep;
-      if (sl && sl.entity) this._toggle(sl.entity);
+    // sleep button. Config: sleep: { entity | entities: [...], script?, confirm? }
+    //  - entities: the button reads "on" when ANY of them is on
+    //  - script: tapping calls this script instead of toggling the entity
+    //  - confirm (default true): the first tap arms the button for 3 s ("tap again
+    //    to confirm"), the second tap fires - guards against accidental taps
+    var sleepBtn = $("sleepBtn"), sleepArmT = null;
+    var sleepDisarm = function () {
+      clearTimeout(sleepArmT); sleepArmT = null;
+      sleepBtn.classList.remove("armed");
+      sleepBtn.querySelector(".sub").textContent = this._t("tap_toggle");
+    }.bind(this);
+    sleepBtn.addEventListener("click", function () {
+      var sl = (this._config || {}).sleep || {};
+      var ids = sl.entities || (sl.entity ? [sl.entity] : []);
+      if (!ids.length && !sl.script) return;
+      if (sl.confirm !== false && !sleepArmT) {
+        sleepBtn.classList.add("armed");
+        sleepBtn.querySelector(".sub").textContent = this._t("sleep_confirm");
+        sleepArmT = setTimeout(sleepDisarm, 3000);
+        return;
+      }
+      sleepDisarm();
+      if (sl.script) this._svc("script", "turn_on", sl.script);
+      else this._toggle(ids[0]);
     }.bind(this));
 
     var alarmBtn = $("alarmBtn");
@@ -2092,8 +2115,9 @@ class FloorConsoleCard extends HTMLElement {
 
     // sleep button
     var sl = cfg.sleep || {};
-    var sleepOn = sl.entity ? get(sl.entity) === "on" : false;
-    $("sleepBtn").hidden = !sl.entity;
+    var sleepIds = sl.entities || (sl.entity ? [sl.entity] : []);
+    var sleepOn = sleepIds.some(function (id) { return get(id) === "on"; });
+    $("sleepBtn").hidden = !sleepIds.length;
     $("sleepBtn").classList.toggle("on", sleepOn);
 
     // keep an open area sheet's subtitle live too
@@ -2597,6 +2621,8 @@ class FloorConsoleCard extends HTMLElement {
 '.qa-btn .sub{font-size:.62rem;color:var(--fg-dim)}' +
 '.qa-btn.on .icon{background:color-mix(in srgb,var(--accent) 30%,transparent)}' +
 '.qa-btn.on .lbl{color:var(--accent-strong)}' +
+'.qa-btn.armed{border-color:var(--alert);background:color-mix(in srgb,var(--alert) 12%,transparent)}' +
+'.qa-btn.armed .sub{color:var(--alert);font-weight:600}' +
 '.qa-btn.qa-alarm{border-color:color-mix(in srgb,var(--alert) 40%,transparent)}' +
 '.qa-btn.qa-alarm .icon{background:color-mix(in srgb,var(--alert) 14%,transparent)}' +
 '.qa-btn.qa-alarm .icon svg{stroke:var(--alert)}' +
