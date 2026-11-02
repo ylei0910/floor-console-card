@@ -404,7 +404,9 @@ function fccFloorplan(fp) {
       (r.stairs ? stairs(r) : "") + P("f-hatch", r.points, ' fill="url(#fpNA)"') + "</g>";
     (r.patches || []).forEach(function (pa) { s += P("f-" + (pa.fill || "grass"), pa.points); });
     if (r.stairs) s += stairs(r);
-    var glow = P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
+    // day-time dimming of an unlit indoor room (`floorplan.dim_unlit`): a dark overlay, faded in by _fpRender
+    var inside = !r.ground && r.floor !== "terrace" && r.floor !== "court";
+    var glow = (inside ? P("f-dim", r.points) : "") + P("f-glow", r.points, ' fill="url(#fpG-' + safe(r.id) + ')"');
     // colour accent: an RGB light in colour mode glows as a soft edge along the walls
     // a thin band along the walls, a little narrower in small rooms
     var xs = r.points.map(function (q) { return q[0]; }), ys = r.points.map(function (q) { return q[1]; });
@@ -1253,6 +1255,9 @@ class FloorConsoleCard extends HTMLElement {
       var id = g.getAttribute("data-room"), room = lit[id], key = "--fpg-" + id.replace(/[^a-zA-Z0-9_-]/g, "_");
       g.classList.toggle("lit", !!room);
       g.classList.toggle("acc", !!(room && room.accent.w));
+      // by day an indoor room with no light on is dimmed so the lit ones stand out; at night it is dark enough already
+      var dim = g.querySelector(".f-dim");
+      if (dim) dim.style.opacity = !room && !dark ? Math.max(0, Math.min(0.7, +cfg.dim_unlit || 0)) : 0;
       if (!room) return;
       var base = room.white.w ? room.white : room.accent, glow = g.querySelector(".f-glow");
       svg.style.setProperty(key, colour(base).join(","));
@@ -2449,7 +2454,7 @@ class FloorConsoleCard extends HTMLElement {
 '.fp .f-ground{fill:var(--fp-ground)}.fp .f-plinth{fill:var(--fp-plinth)}.fp .f-grass{fill:var(--fp-grass)}.fp .f-verge{fill:var(--fp-verge)}.fp .f-pave{fill:var(--fp-pave)}.fp .f-cast{fill:var(--fp-cast)}' +
 '.fp .f-fl.f-room{fill:var(--fp-room)}.fp .f-wet{fill:var(--fp-wet)}.fp .f-wood{fill:var(--fp-wood)}.fp .f-terrace{fill:var(--fp-terrace)}.fp .f-court{fill:var(--fp-court)}.fp .f-stair{fill:var(--fp-stair)}' +
 '.fp .f-step{fill:var(--fp-step)}.fp .f-nose{stroke:var(--fp-wall);stroke-width:1.2;opacity:.9}' +
-'.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-accent{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-accent polygon{fill:none;stroke-linejoin:round;stroke-opacity:.06}.fp .f-rm:not(.acc) .f-accent{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
+'.fp .f-dim{fill:#1d1812;opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-glow{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-rm:not(.lit) .f-glow{opacity:0!important}.fp .f-accent{opacity:0;transition:opacity .45s ease;pointer-events:none}.fp .f-accent polygon{fill:none;stroke-linejoin:round;stroke-opacity:.06}.fp .f-rm:not(.acc) .f-accent{opacity:0!important}.fp .f-rm.lit .f-glow{opacity:1}' +
 '.fp .f-dash{fill:none;stroke:var(--fp-line);stroke-width:1.3;stroke-dasharray:4 4}.fp .f-div{stroke:var(--fp-line);stroke-width:1.5;stroke-dasharray:5 5;transition:opacity .3s}.fp .f-div.off{opacity:0}' +
 '.fp .f-gp{fill:var(--fp-gate);stroke:var(--fp-gate-frame);stroke-width:1.4;stroke-linejoin:round}.fp .f-gs{stroke:var(--fp-gate-slat);stroke-width:.8}' +
 '.fp .f-gate{pointer-events:none}.fp .f-gate-open,.fp .gate-open .f-gate-closed{display:none}.fp .gate-open .f-gate-open{display:inline}' +
