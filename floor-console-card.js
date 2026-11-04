@@ -86,6 +86,7 @@ var FCC_I18N = {
     "zone_detected": "{z}侦测到人",
     "zone_vehicle": "{z}侦测到车辆",
     "zone_tap": "点击查看{z}画面",
+    "zone_present": "{z}有人",
     "hint_pick": "点击选择房间",
     "area_btn": "区域",
     "all_areas": "全部区域",
@@ -212,6 +213,7 @@ var FCC_I18N = {
     "zone_detected": "Person at {z}",
     "zone_vehicle": "Vehicle at {z}",
     "zone_tap": "Tap to view {z}",
+    "zone_present": "Someone in {z}",
     "hint_pick": "Tap to pick a room",
     "area_btn": "Areas",
     "all_areas": "All areas",
@@ -609,8 +611,8 @@ function fccGlowTint(rgb, dark) {
   return rgb.map(function (v) { return Math.max(0, Math.round(255 - (255 - v) * k)); });
 }
 
-var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-exh": "#1fa5d6", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900", "fp-play": "#14a39a" };
-var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-exh": "#6fcff0", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e", "fp-play": "#3cc9bf" };
+var FCC_FP_LIGHT = { "fp-ground": "#e2dbd0", "fp-plinth": "#c9c0b2", "fp-wall": "#ffffff", "fp-wall-face": "#d6cdbf", "fp-wall-side": "#bdb2a1", "fp-room": "#e9dfcd", "fp-wet": "#d5dadd", "fp-wood": "#e0caab", "fp-terrace": "#dbcdb9", "fp-court": "#ddd4c2", "fp-grass": "#c4d0ab", "fp-verge": "#d6dbc8", "fp-pave": "#bcb8b1", "fp-cast": "rgba(70,55,35,.28)", "fp-stair": "#d9d6d1", "fp-step": "#4f4a44", "fp-line": "#bfb7ab", "fp-gate": "#2e2b29", "fp-gate-slat": "#55504b", "fp-gate-frame": "#f5f3ef", "fp-cup-top": "#b38d66", "fp-cup-face": "#9b7653", "fp-cup-side": "#7e5e41", "fp-glow": "255,190,100", "fp-fan": "#9b4fc8", "fp-exh": "#1fa5d6", "fp-pres": "#7cc0f0", "fp-ac": "#2e78d2", "fp-media": "#4a4540", "fp-curtain": "#d9a900", "fp-play": "#14a39a" };
+var FCC_FP_DARK = { "fp-ground": "#252220", "fp-plinth": "#151312", "fp-wall": "#6e665d", "fp-wall-face": "#4a443e", "fp-wall-side": "#38332f", "fp-room": "#37322c", "fp-wet": "#303336", "fp-wood": "#413529", "fp-terrace": "#2e2925", "fp-court": "#2b2723", "fp-grass": "#323d2a", "fp-verge": "#2a3224", "fp-pave": "#22201e", "fp-cast": "rgba(0,0,0,.55)", "fp-stair": "#4a4540", "fp-step": "#000000", "fp-line": "#2a2623", "fp-gate": "#1c1a19", "fp-gate-slat": "#4a4541", "fp-gate-frame": "#a6a199", "fp-cup-top": "#6a5240", "fp-cup-face": "#574334", "fp-cup-side": "#45352a", "fp-glow": "255,180,90", "fp-fan": "#c79cec", "fp-exh": "#6fcff0", "fp-pres": "#3f92d6", "fp-ac": "#78b0ef", "fp-media": "#ddd6cb", "fp-curtain": "#f0cc3e", "fp-play": "#3cc9bf" };
 
 class FloorConsoleCard extends HTMLElement {
   setConfig(config) {
@@ -642,8 +644,21 @@ class FloorConsoleCard extends HTMLElement {
   // height (keeping min_gap px below the top list), hide the area button —
   // and in the panel layout the clock/date too. Measured with everything
   // shown, so the result depends on content only (no flapping).
-  _fitSoon() {
+  // Fitting strips and re-adds layout classes and the live views' sizes to measure, which
+  // makes a playing stream stutter. HA hands the card a new `hass` on every state change
+  // in the house, so those updates only refit when something that sizes the page changed
+  // (`force` = a resize, an alert coming or going, a page swap).
+  _fitSig() {
+    var app = this._root && this._root.querySelector(".app"), $ = this._$.bind(this);
+    if (!app) return "";
+    var keys = Array.prototype.map.call($("occupancyList").children, function (c) {
+      return c.getAttribute("data-k") + (c.getAttribute("data-zs") || "") + (c.classList.contains("leaving") ? "x" : "");
+    }).join(",");
+    return [app.clientWidth, app.clientHeight, app.scrollHeight, $("occWrap").hidden, $("visitorBar").hidden, $("badges").children.length, keys, this._gateOpen ? 1 : 0, this._page].join("|");
+  }
+  _fitSoon(force) {
     if (this._fitQ) return;
+    if (force !== true && this._fitSigLast === this._fitSig()) return;
     this._fitQ = requestAnimationFrame(function () { this._fitQ = 0; this._fit(); }.bind(this));
   }
   _fit() {
@@ -651,7 +666,7 @@ class FloorConsoleCard extends HTMLElement {
     if (!app) return;
     if (window.ResizeObserver && this._fitEl !== app) {
       if (this._fitRO) this._fitRO.disconnect();
-      this._fitRO = this._fitRO || new ResizeObserver(this._fitSoon.bind(this));
+      this._fitRO = this._fitRO || new ResizeObserver(function () { this._fitSoon(true); }.bind(this));
       this._fitRO.observe(app);
       this._fitEl = app;
     }
@@ -718,6 +733,7 @@ class FloorConsoleCard extends HTMLElement {
     else { this._page = "alerts"; clearTimeout(this._pgTimer); }
     list.scrollTop = top;
     if (sbody && sbTop && sbody.scrollTop !== sbTop) sbody.scrollTop = sbTop;
+    this._fitSigLast = this._fitSig();
     this._occMore();
   }
 
@@ -865,6 +881,8 @@ class FloorConsoleCard extends HTMLElement {
     $("radialTrigger").addEventListener("click", this._openAreaList.bind(this));
     $("fpAll").addEventListener("click", this._openAreaList.bind(this));
     $("fpMap").addEventListener("click", function (e) {
+      var pz = e.target.closest("[data-pz]");
+      if (pz) { this._openZoneSheet(pz.getAttribute("data-pz")); return; }
       var t = e.target.closest("[data-area]");
       var a = t && this._AREAS.find(function (x) { return x.id === t.getAttribute("data-area"); });
       if (a) this._openAreaSheet(a, true);
@@ -877,6 +895,10 @@ class FloorConsoleCard extends HTMLElement {
       if (badge.hasAttribute("data-appl")) { this._openApplianceSheet(parseInt(badge.getAttribute("data-appl"), 10)); return; }
       if (badge.hasAttribute("data-power")) { this._openPowerSheet(); return; }
       this._openEntityListSheet(badge.getAttribute("data-list-sensor"), badge.getAttribute("data-list-title"), badge.getAttribute("data-list-icon"));
+    }.bind(this));
+    $("presChips").addEventListener("click", function (e) {
+      var c = e.target.closest("[data-pz]");
+      if (c) this._openZoneSheet(c.getAttribute("data-pz"));
     }.bind(this));
     $("visitorBtn").addEventListener("click", this._openVisitorSheet.bind(this));
     $("occupancyList").addEventListener("click", function (e) {
@@ -897,7 +919,7 @@ class FloorConsoleCard extends HTMLElement {
       var el = e.target;
       if (el.classList && el.classList.contains("leaving")) { el.remove(); this._occTidy(); }
       else if (el.classList) el.classList.remove("enter");
-      this._fitSoon();
+      this._fitSoon(true);
     }.bind(this));
     $("occupancyList").addEventListener("scroll", function () { this._lastScroll = Date.now(); }.bind(this), { passive: true });
     $("pgChip").addEventListener("click", function () { this._setPage("alerts"); }.bind(this));
@@ -1226,7 +1248,8 @@ class FloorConsoleCard extends HTMLElement {
       return '<button class="fp-pin" data-area="' + p.area + '" style="left:' + (p.x * 100).toFixed(2) + '%;top:' + (p.y * 100).toFixed(2) + '%"><span class="fp-ic"></span><i class="fp-exh"></i>' +
         '<i class="fp-d fp-d-fan"></i><i class="fp-d fp-d-ac"></i><i class="fp-d fp-d-media"></i><i class="fp-d fp-d-curtain"></i></button>';
     }).join("") + "</div>";
-    if (this._hass) this._fpRender();
+    this._presKey = null;
+    if (this._hass) { this._fpRender(); this._renderPresence(); }
   }
   // live state: a room glows while any of its lights is on (`lights` maps a light
   // to its room; unmapped lights light the area's first room), corner dots per
@@ -2084,9 +2107,10 @@ class FloorConsoleCard extends HTMLElement {
       var veh = (z.vehicle_sensors || []).some(function (e) { return get(e) === "on"; });
       var active = person || veh;
       if (active) o.veh = veh && !person;
-      // one on-event is shown for at most `max_show` seconds (default 120);
+      // one on-event is shown for at most `max_show` seconds (default 120; not for `quiet` zones);
       // it can only show again after the sensor has gone off and back on
-      if (active && !o.active && !o.on && !o.expired) {
+      // (quiet zones have no cap: their bubble stays as long as a person is detected)
+      if (active && !o.active && !o.on && !o.expired && !z.quiet) {
         o.expired = false; clearTimeout(o.exp);
         o.exp = setTimeout(function () { o.exp = null; o.expired = true; o.on = false; this._renderOccupancy(); }.bind(this), (z.max_show != null ? z.max_show : (cfg.zone_max_show != null ? cfg.zone_max_show : 120)) * 1000);
       } else if (!active && o.active && !o.on) {
@@ -2166,7 +2190,8 @@ class FloorConsoleCard extends HTMLElement {
   // (default 2) cards stream; the panel's decoder can't take more at once.
   _occGroups() {
     var cfg = this._config || {}, ga = cfg.gate_alert || {}, self = this, groups = [], byCam = {};
-    var zones = this._zones().filter(function (z) { return self._occ[z.key] && self._occ[z.key].on; });
+    // `quiet` zones only get a small tap-to-view marker (_renderPresence), never an alert card
+    var zones = this._zones().filter(function (z) { return !z.quiet && self._occ[z.key] && self._occ[z.key].on; });
     if (this._gateOpen) {
       var g = { key: "gate", gate: true, cam: ga.camera || "", label: this._t("gate_cam"), zones: [] };
       groups.push(g);
@@ -2187,7 +2212,43 @@ class FloorConsoleCard extends HTMLElement {
     return groups;
   }
 
+  // Quiet zones (`zones[].quiet: true`, e.g. family walking about indoors): instead of
+  // an alert card with a live stream, a small camera bubble floats above the room's map
+  // pin (`zones[].area` = the pin's area id). A zone without a pin on this map falls back
+  // to a "someone in X" chip under the badges. Tapping either opens that zone's camera.
+  _renderPresence() {
+    var occ = this._occ || {}, self = this;
+    var act = this._zones().filter(function (z) { return z.quiet && occ[z.key] && occ[z.key].on; });
+    var pinsEl = this._root && this._root.querySelector(".fp-pins"), chips = this._$("presChips");
+    if (!chips) return;
+    var byArea = {}, loose = [];
+    act.forEach(function (z) {
+      var pin = z.area && pinsEl && pinsEl.querySelector('.fp-pin[data-area="' + z.area + '"]:not([hidden])');
+      if (pin) (byArea[z.area] = byArea[z.area] || []).push(z); else loose.push(z);
+    });
+    var key = JSON.stringify([Object.keys(byArea).map(function (a) { return [a, byArea[a].map(function (z) { return z.key; })]; }), loose.map(function (z) { return z.key; })]);
+    if (key === this._presKey) return;
+    this._presKey = key;
+    if (pinsEl) {
+      Array.prototype.slice.call(pinsEl.querySelectorAll(".fp-pres")).forEach(function (b) { b.remove(); });
+      Object.keys(byArea).forEach(function (a) {
+        var pin = pinsEl.querySelector('.fp-pin[data-area="' + a + '"]'), zs = byArea[a], b = document.createElement("button");
+        b.className = "fp-pres";
+        b.setAttribute("data-pz", zs[0].key);
+        b.setAttribute("aria-label", self._t("zone_present", { z: zs[0].label }));
+        b.style.left = pin.style.left; b.style.top = pin.style.top;
+        b.innerHTML = self._icon("i-cctv") + (zs.length > 1 ? "<i>" + zs.length + "</i>" : "");
+        pinsEl.appendChild(b);
+      });
+    }
+    chips.innerHTML = loose.map(function (z) {
+      return self._badgeHTML("--fp-pres", "i-cctv", self._t("zone_present", { z: z.label })).replace('class="badge"', 'class="badge pres-chip" data-pz="' + z.key + '"');
+    }).join("");
+    this._fitSoon(true);
+  }
+
   _renderOccupancy() {
+    this._renderPresence();
     var groups = this._occGroups(), self = this, tt = this._t.bind(this);
     var key = JSON.stringify(groups.map(function (g) { return [g.key, g.stream, g.zones.map(function (z) { return z.key; })]; }));
     if (key === this._occKey) return;
@@ -2241,7 +2302,7 @@ class FloorConsoleCard extends HTMLElement {
       el.classList.remove("enter");
       el.classList.add("leaving");
       // animationend normally removes it; this is the fallback
-      setTimeout(function () { if (el.parentNode) { el.remove(); this._occTidy(); this._fitSoon(); } }.bind(this), 450);
+      setTimeout(function () { if (el.parentNode) { el.remove(); this._occTidy(); this._fitSoon(true); } }.bind(this), 450);
     }.bind(this));
     if (fresh0 && this._occInit) this._setPage("alerts");
     this._occInit = true;
@@ -2304,7 +2365,7 @@ class FloorConsoleCard extends HTMLElement {
       app.classList.add(inCls);
       setTimeout(function () { app.classList.remove(inCls); }, 360);
       if (up) self._pgArm(); else clearTimeout(self._pgTimer);
-      self._fitSoon();
+      self._fitSoon(true);
     }, 200);
   }
 
@@ -2464,6 +2525,12 @@ class FloorConsoleCard extends HTMLElement {
 '.fp-pins{position:absolute;inset:0;z-index:1;pointer-events:none}' +
 '.fp-pin{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;padding:0;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:transform .15s,box-shadow .3s,border-color .3s}' +
 '.fp-map.pin-only .f-hit{pointer-events:none;cursor:default}.fp-pin::before{content:"";position:absolute;z-index:-1;inset:calc(-1 * var(--fp-tap,0px));border-radius:50%}' +
+'.fp-pres{position:absolute;z-index:2;transform:translate(-50%,-100%);margin-top:-19px;min-width:30px;height:22px;padding:0 7px;border-radius:11px;border:1.5px solid var(--fp-pres,#7cc0f0);background:var(--surface);color:var(--fp-pres,#7cc0f0);display:flex;align-items:center;justify-content:center;gap:3px;cursor:pointer;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.3);animation:fpPresIn .3s ease-out,fpPresBob 1.8s ease-in-out .3s infinite}' +
+'.fp-pres svg,.fp-pres ha-icon{width:15px;height:15px;stroke:currentColor;--mdc-icon-size:15px;display:flex}.fp-pres i{font-style:normal;font-size:.68rem;font-weight:700}' +
+'.fp-pres::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:var(--fp-pres,#7cc0f0)}' +
+'@keyframes fpPresIn{from{opacity:0}}@keyframes fpPresBob{50%{margin-top:-22px}}' +
+'@media (prefers-reduced-motion:reduce){.fp-pres{animation:none}}' +
+'.pres-chip{cursor:pointer}' +
 '.fp-pin[hidden]{display:none}.fp-pin:active{transform:scale(.9)}' +
 '.fp-pin.lit{border-color:rgba(var(--fp-glow),.95);box-shadow:0 0 0 1px rgba(var(--fp-glow),.6),0 2px 8px rgba(var(--fp-glow),.45)}' +
 '.fp-pin .fp-ic{display:flex}.fp-pin ha-icon{--mdc-icon-size:16px;display:flex}.fp-pin .fp-ic svg{width:16px;height:16px;stroke:currentColor}' +
@@ -2704,6 +2771,7 @@ class FloorConsoleCard extends HTMLElement {
 '<div class="app' + ((this._config || {}).layout === "panel" ? " panel" : "") + '">' +
 '<div class="panelhead" id="panelHead" hidden><div class="pclock" id="pClock"></div><div class="pdate" id="pDate"></div><div class="people" id="pPeople"></div></div>' +
 '<div class="badges" id="badges"></div>' +
+'<div class="badges" id="presChips"></div>' +
 '<div class="pgchipwrap"><button class="pgchip" id="pgChip"></button></div>' +
 '<div class="occwrap" id="occWrap" hidden><div class="occupancylist" id="occupancyList"></div><button class="occmore" id="occMore" hidden></button></div>' +
 '<div class="mapchipwrap"><button class="mapchip" id="mapChip"></button></div>' +
