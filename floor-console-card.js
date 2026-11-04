@@ -2116,7 +2116,7 @@ class FloorConsoleCard extends HTMLElement {
       // one on-event is shown for at most `max_show` seconds (default 120; not for `quiet` zones);
       // it can only show again after the sensor has gone off and back on
       // (quiet zones have no cap: their bubble stays as long as a person is detected)
-      if (active && !o.active && !o.on && !o.expired && !z.quiet) {
+      if (active && !o.active && !o.on && !o.expired && !this._isQuiet(z)) {
         o.expired = false; clearTimeout(o.exp);
         o.exp = setTimeout(function () { o.exp = null; o.expired = true; o.on = false; this._renderOccupancy(); }.bind(this), (z.max_show != null ? z.max_show : (cfg.zone_max_show != null ? cfg.zone_max_show : 120)) * 1000);
       } else if (!active && o.active && !o.on) {
@@ -2197,7 +2197,7 @@ class FloorConsoleCard extends HTMLElement {
   _occGroups() {
     var cfg = this._config || {}, ga = cfg.gate_alert || {}, self = this, groups = [], byCam = {};
     // `quiet` zones only get a small tap-to-view marker (_renderPresence), never an alert card
-    var zones = this._zones().filter(function (z) { return !z.quiet && self._occ[z.key] && self._occ[z.key].on; });
+    var zones = this._zones().filter(function (z) { return !self._isQuiet(z) && self._occ[z.key] && self._occ[z.key].on; });
     if (this._gateOpen) {
       var g = { key: "gate", gate: true, cam: ga.camera || "", label: this._t("gate_cam"), zones: [] };
       groups.push(g);
@@ -2218,13 +2218,32 @@ class FloorConsoleCard extends HTMLElement {
     return groups;
   }
 
+  // A `quiet` zone is quiet unless a stream condition is true: `stream_when` on the zone, else
+  // the card's `quiet_stream_when`. One condition or a list (any true streams):
+  //   { entity, state?: "on" | ["armed_away", ...], state_not?, attribute? }
+  // `state` defaults to "on"; with `attribute` it compares that attribute instead of the state.
+  _isQuiet(z) {
+    if (!z.quiet) return false;
+    var cfg = this._config || {}, h = this._hass, spec = z.stream_when != null ? z.stream_when : cfg.quiet_stream_when;
+    if (!spec || !h) return true;
+    var conds = Array.isArray(spec) ? spec : [spec];
+    var hit = conds.some(function (c) {
+      var st = c && c.entity && h.states[c.entity];
+      if (!st) return false;
+      var v = String(c.attribute ? (st.attributes || {})[c.attribute] : st.state);
+      if (c.state_not != null) return [].concat(c.state_not).map(String).indexOf(v) < 0;
+      return [].concat(c.state != null ? c.state : "on").map(String).indexOf(v) >= 0;
+    });
+    return !hit;
+  }
+
   // Quiet zones (`zones[].quiet: true`, e.g. family walking about indoors): instead of
   // an alert card with a live stream, a small camera bubble floats above the room's map
   // pin (`zones[].area` = the pin's area id). A zone without a pin on this map falls back
   // to a "someone in X" chip under the badges. Tapping either opens that zone's camera.
   _renderPresence() {
     var occ = this._occ || {}, self = this;
-    var act = this._zones().filter(function (z) { return z.quiet && occ[z.key] && occ[z.key].on; });
+    var act = this._zones().filter(function (z) { return self._isQuiet(z) && occ[z.key] && occ[z.key].on; });
     var pinsEl = this._root && this._root.querySelector(".fp-pins"), chips = this._$("presChips");
     if (!chips) return;
     var byArea = {}, loose = [];
