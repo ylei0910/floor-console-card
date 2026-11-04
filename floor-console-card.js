@@ -881,8 +881,14 @@ class FloorConsoleCard extends HTMLElement {
     $("radialTrigger").addEventListener("click", this._openAreaList.bind(this));
     $("fpAll").addEventListener("click", this._openAreaList.bind(this));
     $("fpMap").addEventListener("click", function (e) {
-      var pz = e.target.closest("[data-pz]");
-      if (pz) { this._openZoneSheet(pz.getAttribute("data-pz")); return; }
+      var had = this._presPickClose(), pz = e.target.closest("[data-pz]");
+      if (pz) {
+        var ks = (pz.getAttribute("data-pzs") || "").split(",").filter(Boolean);
+        // a bubble shared by several zones asks which camera; tapping it again closes the list
+        if (ks.length > 1) { if (!had) this._presPicker(pz, ks); }
+        else this._openZoneSheet(pz.getAttribute("data-pz"));
+        return;
+      }
       var t = e.target.closest("[data-area]");
       var a = t && this._AREAS.find(function (x) { return x.id === t.getAttribute("data-area"); });
       if (a) this._openAreaSheet(a, true);
@@ -2230,11 +2236,12 @@ class FloorConsoleCard extends HTMLElement {
     if (key === this._presKey) return;
     this._presKey = key;
     if (pinsEl) {
-      Array.prototype.slice.call(pinsEl.querySelectorAll(".fp-pres")).forEach(function (b) { b.remove(); });
+      Array.prototype.slice.call(pinsEl.querySelectorAll(".fp-pres,.fp-prespick")).forEach(function (b) { b.remove(); });
       Object.keys(byArea).forEach(function (a) {
         var pin = pinsEl.querySelector('.fp-pin[data-area="' + a + '"]'), zs = byArea[a], b = document.createElement("button");
         b.className = "fp-pres";
         b.setAttribute("data-pz", zs[0].key);
+        b.setAttribute("data-pzs", zs.map(function (z) { return z.key; }).join(","));
         b.setAttribute("aria-label", self._t("zone_present", { z: zs[0].label }));
         b.style.left = pin.style.left; b.style.top = pin.style.top;
         b.innerHTML = self._icon("i-cctv") + (zs.length > 1 ? "<i>" + zs.length + "</i>" : "");
@@ -2245,6 +2252,29 @@ class FloorConsoleCard extends HTMLElement {
       return self._badgeHTML("--fp-pres", "i-cctv", self._t("zone_present", { z: z.label })).replace('class="badge"', 'class="badge pres-chip" data-pz="' + z.key + '"');
     }).join("");
     this._fitSoon(true);
+  }
+
+  _presPickClose() {
+    var d = this._root && this._root.querySelector(".fp-prespick");
+    clearTimeout(this._presPickT);
+    if (d) d.remove();
+    return !!d;
+  }
+  _presPicker(b, keys) {
+    var pins = b.parentNode, self = this, zones = this._zones();
+    var d = document.createElement("div");
+    d.className = "fp-prespick";
+    d.style.left = b.style.left; d.style.top = b.style.top;
+    d.innerHTML = keys.map(function (k) {
+      var z = zones.filter(function (x) { return x.key === k; })[0];
+      return '<button data-pz="' + k + '">' + self._icon("i-cctv") + "<span>" + (z ? z.label : k) + "</span></button>";
+    }).join("");
+    pins.appendChild(d);
+    // keep the list inside the map
+    var pr = pins.getBoundingClientRect(), r = d.getBoundingClientRect();
+    var dx = r.left < pr.left + 4 ? pr.left + 4 - r.left : (r.right > pr.right - 4 ? pr.right - 4 - r.right : 0);
+    if (dx) d.style.marginLeft = dx + "px";
+    this._presPickT = setTimeout(function () { d.remove(); }, 8000);
   }
 
   _renderOccupancy() {
@@ -2530,6 +2560,10 @@ class FloorConsoleCard extends HTMLElement {
 '.fp-pres::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:var(--fp-pres,#7cc0f0)}' +
 '@keyframes fpPresIn{from{opacity:0}}@keyframes fpPresBob{50%{margin-top:-22px}}' +
 '@media (prefers-reduced-motion:reduce){.fp-pres{animation:none}}' +
+'.fp-prespick{position:absolute;z-index:3;transform:translate(-50%,-100%);margin-top:-48px;display:flex;flex-direction:column;padding:4px;border-radius:12px;background:var(--surface);border:1.5px solid var(--fp-pres,#7cc0f0);box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:auto;animation:fpPresIn .2s ease-out}' +
+'.fp-prespick button{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--fg);font:inherit;font-size:.78rem;font-weight:600;padding:7px 11px;border-radius:8px;cursor:pointer;white-space:nowrap}' +
+'.fp-prespick button:active{background:color-mix(in srgb,var(--fp-pres,#7cc0f0) 18%,transparent)}' +
+'.fp-prespick svg,.fp-prespick ha-icon{width:15px;height:15px;stroke:var(--fp-pres,#7cc0f0);--mdc-icon-size:15px;display:flex}' +
 '.pres-chip{cursor:pointer}' +
 '.fp-pin[hidden]{display:none}.fp-pin:active{transform:scale(.9)}' +
 '.fp-pin.lit{border-color:rgba(var(--fp-glow),.95);box-shadow:0 0 0 1px rgba(var(--fp-glow),.6),0 2px 8px rgba(var(--fp-glow),.45)}' +
