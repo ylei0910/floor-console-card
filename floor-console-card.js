@@ -1513,8 +1513,9 @@ class FloorConsoleCard extends HTMLElement {
       // 窗帘 / 纱帘 tile: one tap opens or closes every cover in the group.
       var n = r.entities.length;
       var nOpen = r.entities.filter(function (id) { return this._isOn(id); }.bind(this)).length;
-      return '<button class="master-toggle curtain-tile' + (nOpen ? " on" : "") + '" data-entities="' + r.entities.join(",") + '">' + this._icon(r.icon) +
-        '<span>' + r.kind + '</span><span class="n ds">' + this._curtainText(nOpen, n) + '</span></button>';
+      return '<div class="master-toggle curtain-tile' + (nOpen ? " on" : "") + '" data-entities="' + r.entities.join(",") + '"><button class="cmain">' + this._icon(r.icon) +
+        '<span>' + r.kind + '</span><span class="n ds">' + this._curtainText(nOpen, n) + '</span></button>' +
+        '<button class="dev-more cmore" aria-label="' + this._t("details") + '">⋯</button></div>';
     }
     if (r.camera) {
       // Cameras are round buttons in their own bar (see _openSheet), so
@@ -1557,6 +1558,26 @@ class FloorConsoleCard extends HTMLElement {
 
   _curtainText(nOpen, n) {
     return nOpen === 0 ? this._t("c_closed") : (nOpen === n ? this._t("c_open") : this._t("c_part", { a: nOpen, b: n }));
+  }
+
+  // "⋯" on a curtain tile with several covers: pick one to open its more-info.
+  _coverMenu(tile, ids) {
+    var self = this, old = this._root.querySelector(".cmenu");
+    if (old) { var same = old._tile === tile; old.remove(); if (same) return; }
+    var h = this._hass, m = document.createElement("div");
+    m.className = "cmenu"; m._tile = tile;
+    ids.forEach(function (id) {
+      var st = h.states[id], b = document.createElement("button");
+      b.textContent = (st && st.attributes.friendly_name) || id;
+      b.addEventListener("click", function () { m.remove(); self._moreInfo(id); });
+      m.appendChild(b);
+    });
+    var r = tile.getBoundingClientRect();
+    m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+    m.style.bottom = Math.max(8, window.innerHeight - r.top + 4) + "px";
+    this._root.appendChild(m);
+    var close = function (e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener("pointerdown", close, true); } };
+    setTimeout(function () { document.addEventListener("pointerdown", close, true); }, 0);
   }
 
   _moreInfo(entity_id) {
@@ -1616,9 +1637,14 @@ class FloorConsoleCard extends HTMLElement {
     container.querySelectorAll(".row, .master-toggle, .cam-btn, .dev-tile, .curtain-tile").forEach(function (row) {
       if (row.classList.contains("curtain-tile")) {
         var cids = row.getAttribute("data-entities").split(",");
-        row.addEventListener("click", function () {
+        row.querySelector(".cmain").addEventListener("click", function () {
           var anyOpen = cids.some(function (id) { return self._isOn(id); });
           self._svc("cover", anyOpen ? "close_cover" : "open_cover", cids);
+        });
+        row.querySelector(".cmore").addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          if (cids.length === 1) { self._moreInfo(cids[0]); return; }
+          self._coverMenu(row, cids);
         });
         return;
       }
@@ -2784,6 +2810,12 @@ class FloorConsoleCard extends HTMLElement {
 '.dev-tile.on .ds{color:var(--accent-strong)}' +
 '.dev-more{flex:none;width:34px;align-self:stretch;border:none;border-left:1px solid var(--line);background:none;color:var(--fg-dim);font:inherit;font-size:1.1rem;cursor:pointer;border-radius:0 14px 14px 0}' +
 '.master-toggle.curtain-tile .n{font-family:inherit;font-weight:600}' +
+'.master-toggle.curtain-tile{padding:0;gap:0;overflow:hidden}' +
+'.curtain-tile .cmain{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 4px;border:none;background:none;color:inherit;font:inherit;cursor:pointer}' +
+'.curtain-tile .cmain svg{width:15px;height:15px;stroke:currentColor;flex:none}' +
+'.curtain-tile .dev-more{width:30px;border-radius:0;color:inherit;border-left-color:color-mix(in srgb,var(--accent) 30%,transparent)}' +
+'.cmenu{position:fixed;z-index:9999;display:flex;flex-direction:column;min-width:140px;max-width:70vw;border-radius:14px;border:1px solid var(--line);background:var(--surface-2);box-shadow:0 6px 24px rgba(0,0,0,.3);overflow:hidden}' +
+'.cmenu button{padding:11px 14px;border:none;border-bottom:1px solid var(--line);background:none;color:var(--fg);font:inherit;font-size:.82rem;text-align:left;cursor:pointer}.cmenu button:last-child{border-bottom:none}' +
 '.row ha-switch{flex:none}' +
 '.row.gate{cursor:pointer}' +
 '.cgroup{grid-column:1/-1}' +
