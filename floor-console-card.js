@@ -1856,6 +1856,8 @@ class FloorConsoleCard extends HTMLElement {
       var v = cardEl.video || (cardEl.shadowRoot && cardEl.shadowRoot.querySelector("video"));
       var playing = v && v.currentTime > 0 && !v.paused;
       if (playing) {
+        // apply a remembered zoom now that the video has its real size
+        v.dispatchEvent(new Event("loadedmetadata"));
         try {
           var w = 96, hgt = Math.max(1, Math.round(w * v.videoHeight / v.videoWidth));
           var cv = document.createElement("canvas");
@@ -1876,6 +1878,14 @@ class FloorConsoleCard extends HTMLElement {
     container.appendChild(el);
     if (cardConfig.type === "custom:webrtc-camera") this._spin(container, el, cardConfig.streams[0].url);
     this._embedEl = el;
+    // webrtc-camera's digital zoom measures the video on `loadedmetadata` or
+    // when its box resizes. Our box is sized in advance, so if the video's
+    // size arrives late, zooming stays dead: measure again as a gesture starts.
+    ["touchstart", "mousedown", "wheel"].forEach(function (ev) {
+      el.addEventListener(ev, function () {
+        if (el.video && el.video.videoWidth) el.video.dispatchEvent(new Event("loadedmetadata"));
+      }, { capture: true, passive: true });
+    });
     if (unmute) {
       // webrtc-camera starts the <video> muted (browser autoplay policy);
       // the 对讲 tap is a user gesture, so un-muting the speaker is allowed.
