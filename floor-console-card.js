@@ -1955,7 +1955,7 @@ class FloorConsoleCard extends HTMLElement {
     this._openSheet({
       name: this._cameraName(stream) || label, roman: "Camera", icon: "i-cctv", status: this._t("live"),
       embed: this._camEmbed(stream), ratio: this._ratio(stream),
-      talk: this._isDoorbell(stream) ? this._doorbell() : null,
+      talk: this._canTalk(stream) ? stream || this._doorbell() : null,
       rows: this._cameraControls(stream),
       back: "back" in o ? o.back : (area ? function () { this._openAreaSheet(area); }.bind(this) : true)
     });
@@ -2018,10 +2018,13 @@ class FloorConsoleCard extends HTMLElement {
     return ((this._config || {}).camera_ratios || {})[s] || "16/9";
   }
   _isDoorbell(stream) { var d = this._doorbell(); return !!d && (!stream || stream === d); }
+  // cameras with the watch / talk switch: the doorbell, plus `talk_cameras`
+  // (their go2rtc stream needs a way to the camera's speaker)
+  _canTalk(stream) { return this._isDoorbell(stream) || ((this._config || {}).talk_cameras || []).indexOf(stream) >= 0; }
 
   _camEmbed(stream, talk) {
     // Same webrtc-camera setup the main dashboard uses for its cctv pop-ups.
-    // The doorbell has two modes (muted watch / microphone talk-back); the
+    // A talk camera has two modes (muted watch / microphone talk-back); the
     // mode switch is our own control below the video (.talkbar), so the
     // built-in on-video stream selector is hidden for it. No `poster`: only
     // the live stream is shown, with the card's spinner while it connects.
@@ -2030,10 +2033,13 @@ class FloorConsoleCard extends HTMLElement {
     // `stream_names` maps a camera entity to the go2rtc stream to play (e.g. a
     // small H.264 sub-stream for a wall panel that can't decode the main one)
     stream = ((this._config || {}).stream_names || {})[stream] || stream;
-    var streams = doorbell ? [talk
+    // `talk` is only ever set from the switch, which only talk cameras have.
+    // Watching, only the doorbell skips the MSE fallback.
+    var streams = [talk
       ? { url: stream, mode: "webrtc,webrtc/tcp,mse", name: "🎙️", media: "video,audio,microphone" }
-      : { url: stream, mode: "webrtc,webrtc/tcp", name: "🎙️🚫", media: "video,audio" }
-    ] : [{ url: stream, name: "🎙️🚫" }];
+      : doorbell ? { url: stream, mode: "webrtc,webrtc/tcp", name: "🎙️🚫", media: "video,audio" }
+      : { url: stream, name: "🎙️🚫" }
+    ];
     return {
       type: "custom:webrtc-camera",
       mode: "webrtc,webrtc/tcp,mse",
